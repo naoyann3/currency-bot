@@ -16,7 +16,7 @@ def get_usd_jpy_rate():
 
 @bot.event
 async def on_ready():
-    print(f"{bot.user} が起動しました！")
+    print(f"{bot.user} が起動しました！(再確認版)")
 
 @bot.event
 async def on_message(message):
