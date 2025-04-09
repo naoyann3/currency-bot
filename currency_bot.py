@@ -46,7 +46,7 @@ async def on_message(message):
 
     # 通常の「◯◯ドル」の置換
     def replace_dollar(match):
-        nonlocal modified, new_content
+        nonlocal modified
         amount_str = match.group(1)
         print(f"Debug: Found dollar amount: {amount_str}", flush=True)
         try:
@@ -54,7 +54,7 @@ async def on_message(message):
             result = int(amount_float * rate)
             amount_formatted = "{:,}".format(int(amount_float))
             result_formatted = "{:,}".format(result)
-            if "平均取得単価" in new_content and amount_str in new_content.split("平均取得単価")[1]:
+            if "平均取得単価" in content and amount_str in content.split("平均取得単価")[1]:  # new_content → contentに修正
                 return f"{amount_formatted}ドル"
             else:
                 modified = True
@@ -64,6 +64,8 @@ async def on_message(message):
             return match.group(0)
 
     new_content = re.sub(dollar_pattern, replace_dollar, new_content)
+    if modified:  # 置換が成功したか確認
+        print("Debug: Dollar amounts replaced", flush=True)
 
     # 「CME窓 赤丸◯◯」の置換
     def replace_cme(match):
