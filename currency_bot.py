@@ -32,13 +32,10 @@ async def on_message(message):
     is_resistance = "レジスタンスライン" in content
     direction = "より上" if is_support else "より下" if is_resistance else "付近"
 
-    matches = re.search(dollar_pattern, content) or re.search(cme_pattern, content)
-    if not matches:
-        await bot.process_commands(message)
-        return
-
+    # マッチ確認を簡略化
     rate = get_usd_jpy_rate()
     new_content = content.replace("@everyone", "").strip()
+    modified = False
 
     # 通常の「◯◯ドル」の処理
     for match in re.finditer(dollar_pattern, new_content):
@@ -51,6 +48,7 @@ async def on_message(message):
             new_content = new_content.replace(f"{amount_str}ドル", f"{amount_formatted}ドル", 1)
         else:
             new_content = new_content.replace(f"{amount_str}ドル", f"{result_formatted}円{direction}\n{amount_formatted}ドル", 1)
+            modified = True
 
     # 「CME窓 赤丸◯◯」の処理
     for match in re.finditer(cme_pattern, new_content):
@@ -64,6 +62,11 @@ async def on_message(message):
             f"{result_formatted}円{direction}\nCME窓 赤丸{amount_formatted}ドル",
             1
         )
+        modified = True
+
+    if not modified:
+        await bot.process_commands(message)
+        return
 
     # レート情報
     if "平均取得単価" in new_content:
