@@ -44,7 +44,9 @@ async def on_message(message):
     new_content = content.replace("@everyone", "").strip()
     modified = False
 
-    for match in re.finditer(dollar_pattern, new_content):
+    # 通常の「◯◯ドル」の置換
+    def replace_dollar(match):
+        nonlocal modified, new_content
         amount_str = match.group(1)
         print(f"Debug: Found dollar amount: {amount_str}", flush=True)
         try:
@@ -53,26 +55,29 @@ async def on_message(message):
             amount_formatted = "{:,}".format(int(amount_float))
             result_formatted = "{:,}".format(result)
             if "平均取得単価" in new_content and amount_str in new_content.split("平均取得単価")[1]:
-                new_content = new_content.replace(f"{amount_str}ドル", f"{amount_formatted}ドル", 1)
+                return f"{amount_formatted}ドル"
             else:
-                new_content = new_content.replace(f"{amount_str}ドル", f"{result_formatted}円{direction}\n{amount_formatted}ドル", 1)
                 modified = True
+                return f"{result_formatted}円{direction}\n{amount_formatted}ドル"
         except ValueError as e:
             print(f"Debug: Invalid amount {amount_str}: {e}", flush=True)
+            return match.group(0)
 
-    for match in re.finditer(cme_pattern, new_content):
+    new_content = re.sub(dollar_pattern, replace_dollar, new_content)
+
+    # 「CME窓 赤丸◯◯」の置換
+    def replace_cme(match):
+        nonlocal modified
         amount_str = match.group(1)
         print(f"Debug: Found CME amount: {amount_str}", flush=True)
         amount_float = float(amount_str)
         result = int(amount_float * rate)
         amount_formatted = "{:,}".format(int(amount_float))
         result_formatted = "{:,}".format(result)
-        new_content = new_content.replace(
-            match.group(0),
-            f"{result_formatted}円{direction}\nCME窓 赤丸{amount_formatted}ドル",
-            1
-        )
         modified = True
+        return f"{result_formatted}円{direction}\nCME窓 赤丸{amount_formatted}ドル"
+
+    new_content = re.sub(cme_pattern, replace_cme, new_content)
 
     if not modified:
         print("Debug: No modifications made, skipping send", flush=True)
