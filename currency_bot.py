@@ -44,6 +44,10 @@ async def on_message(message):
     new_content = content.replace("@everyone", "").strip()
     modified = False
 
+    # 「平均取得単価」の位置を事前に特定
+    avg_price_index = content.find("平均取得単価")
+    has_avg_price = avg_price_index != -1
+
     # 通常の「◯◯ドル」の置換
     def replace_dollar(match):
         nonlocal modified
@@ -54,8 +58,8 @@ async def on_message(message):
             result = int(amount_float * rate)
             amount_formatted = "{:,}".format(int(amount_float))
             result_formatted = "{:,}".format(result)
-            # 「平均取得単価」の後だけ特別扱い、それ以外は通常置換
-            if "平均取得単価" in content and amount_str in content.split("平均取得単価")[1]:
+            # 「平均取得単価」の後にある場合のみ特別扱い
+            if has_avg_price and match.start() > avg_price_index:
                 return f"{amount_formatted}ドル"
             modified = True
             return f"{result_formatted}円{direction}\n{amount_formatted}ドル"
