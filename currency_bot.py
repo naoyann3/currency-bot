@@ -54,17 +54,17 @@ async def on_message(message):
             result = int(amount_float * rate)
             amount_formatted = "{:,}".format(int(amount_float))
             result_formatted = "{:,}".format(result)
-            if "平均取得単価" in content and amount_str in content.split("平均取得単価")[1]:  # new_content → contentに修正
+            # 「平均取得単価」の後だけ特別扱い、それ以外は通常置換
+            if "平均取得単価" in content and amount_str in content.split("平均取得単価")[1]:
                 return f"{amount_formatted}ドル"
-            else:
-                modified = True
-                return f"{result_formatted}円{direction}\n{amount_formatted}ドル"
+            modified = True
+            return f"{result_formatted}円{direction}\n{amount_formatted}ドル"
         except ValueError as e:
             print(f"Debug: Invalid amount {amount_str}: {e}", flush=True)
             return match.group(0)
 
     new_content = re.sub(dollar_pattern, replace_dollar, new_content)
-    if modified:  # 置換が成功したか確認
+    if modified:
         print("Debug: Dollar amounts replaced", flush=True)
 
     # 「CME窓 赤丸◯◯」の置換
