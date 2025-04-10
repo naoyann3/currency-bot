@@ -50,13 +50,13 @@ async def on_message(message):
             amount_formatted = "{:,}".format(int(amount_float))
             result_formatted = "{:,}".format(result)
             modified = True
+            # 「平均取得単価」の直後のドル金額にレートを追加
+            if avg_price_pos != -1 and match.start() > avg_price_pos and "平均取得単価" in new_content[:match.start()]:
+                return f" {result_formatted}円{direction}\n{amount_formatted}ドル\n(レート: 1ドル = {rate:.2f}円)"
             # 最初のドル金額にレートを追加（「平均取得単価」がない場合）
-            if first_dollar and avg_price_pos == -1:
+            elif avg_price_pos == -1 and first_dollar:
                 first_dollar = False
                 return f"{result_formatted}円{direction}\n{amount_formatted}ドル\n(レート: 1ドル = {rate:.2f}円)"
-            # 「平均取得単価」の直後のドル金額にレートを追加
-            elif avg_price_pos != -1 and match.start() > avg_price_pos and "平均取得単価" in new_content[:match.start()]:
-                return f" {result_formatted}円{direction}\n{amount_formatted}ドル\n(レート: 1ドル = {rate:.2f}円)"
             return f"{result_formatted}円{direction}\n{amount_formatted}ドル"
         except ValueError as e:
             print(f"Debug: Invalid amount {amount_str}: {e}", flush=True)
