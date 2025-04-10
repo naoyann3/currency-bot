@@ -10,7 +10,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 def get_usd_jpy_rate():
     try:
-        api_key = os.getenv("API_KEY")  # 環境変数から取得
+        api_key = os.getenv("API_KEY")
         url = f"https://v6.exchangerate-api.com/v6/{api_key}/latest/USD"
         response = requests.get(url)
         data = response.json()
@@ -19,11 +19,11 @@ def get_usd_jpy_rate():
         return rate
     except Exception as e:
         print(f"Debug: Error fetching rate: {e}, using fallback 146.59", flush=True)
-        return 146.59  # エラー時は固定値でフォールバック
+        return 146.59
 
 @bot.event
 async def on_ready():
-    print(f"{bot.user} が起動しました！(リアルタイム版)", flush=True)
+    print(f"{bot.user} が起動しました！(メッセージ削除版)", flush=True)
 
 @bot.event
 async def on_message(message):
@@ -95,6 +95,15 @@ async def on_message(message):
 
     final_content = "@everyone\n" + new_content
     print("Debug: Sending final content", flush=True)
+    
+    # 元のメッセージを削除
+    try:
+        await message.delete()
+        print("Debug: Original message deleted", flush=True)
+    except Exception as e:
+        print(f"Debug: Failed to delete message: {e}", flush=True)
+    
+    # 計算済みのメッセージを送信
     await message.channel.send(final_content)
 
     await bot.process_commands(message)
