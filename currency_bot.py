@@ -9,16 +9,9 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 def get_usd_jpy_rate():
-    url = "https://api.exchangerate-api.com/v4/latest/USD"
-    try:
-        response = requests.get(url)
-        data = response.json()
-        rate = data["rates"]["JPY"]
-        print(f"Debug: Rate fetched successfully: {rate}", flush=True)
-        return rate
-    except Exception as e:
-        print(f"Debug: Rate fetch failed: {e}", flush=True)
-        return 146.59
+    rate = 146.59  # 固定レート
+    print(f"Debug: Using fixed rate: {rate}", flush=True)
+    return rate
 
 @bot.event
 async def on_ready():
@@ -43,6 +36,7 @@ async def on_message(message):
     rate = get_usd_jpy_rate()
     new_content = content.replace("@everyone", "").strip()
     modified = False
+    avg_price_pos = new_content.find("平均取得単価")
 
     # 通常の「◯◯ドル」の置換
     def replace_dollar(match):
@@ -55,6 +49,9 @@ async def on_message(message):
             amount_formatted = "{:,}".format(int(amount_float))
             result_formatted = "{:,}".format(result)
             modified = True
+            # 「平均取得単価」の直後のドル金額にレートを追加
+            if avg_price_pos != -1 and match.start() > avg_price_pos and "平均取得単価" in new_content[:match.start()]:
+                return f"{result_formatted}円{direction}\n{amount_formatted}ドル\n(レート: 1ドル = {rate:.2f}円)"
             return f"{result_formatted}円{direction}\n{amount_formatted}ドル"
         except ValueError as e:
             print(f"Debug: Invalid amount {amount_str}: {e}", flush=True)
@@ -83,20 +80,11 @@ async def on_message(message):
         await bot.process_commands(message)
         return
 
-    # レートを「平均取得単価」の直下に挿入
-    avg_price_pos = new_content.find("平均取得単価")
-    if avg_price_pos != -1:
-        # 「平均取得単価」の次の改行位置を探す
-        next_newline = new_content.find("\n", avg_price_pos)
-        if next_newline == -1:
-            new_content += f"\n(レート: 1ドル = {rate:.2f}円)"
-        else:
-            new_content = (
-                new_content[:next_newline] +
-                f"\n(レート: 1ドル = {rate:.2f}円)" +
-                new_content[next_newline:]
-            )
-    else:
+    # 「平均取得単価」のスペースを詰める
+    new_content = new_content.replace("平均取得単価　", "平均取得単価")
+
+    # 「平均取得単価」があればレートはドル金額に付けたので、末尾追加は他にドルがなければ
+    if avg_price_pos == -1:
         new_content += f"\n(レート: 1ドル = {rate:.2f}円)"
 
     final_content = "@everyone\n" + new_content
