@@ -13,7 +13,6 @@ ALLOWED_CHANNEL_IDS = [
     1010942630324076634   # #crypto-updates
 ]
 
-# 処理済みメッセージIDを記録するセット
 PROCESSED_MESSAGE_IDS = set()
 
 def get_usd_jpy_rate():
@@ -31,18 +30,17 @@ def get_usd_jpy_rate():
 
 @bot.event
 async def on_ready():
-    print(f"{bot.user} が起動しました！(複数チャンネル版)", flush=True)
+    print(f"{bot.user} が起動しました！(鉄壁版)", flush=True)
 
 @bot.event
 async def on_message(message):
-    # 重複処理防止（メッセージIDをチェック）
     if message.author == bot.user or message.id in PROCESSED_MESSAGE_IDS:
         return
-    PROCESSED_MESSAGE_IDS.add(message.id)  # 処理済みIDを追加
+    PROCESSED_MESSAGE_IDS.add(message.id)
 
-    # チャンネルIDをチェック
+    # 二重チェック（Discord設定でほぼ不要だが念のため）
     if message.channel.id not in ALLOWED_CHANNEL_IDS:
-        print(f"Debug: Message from channel {message.channel.id}, skipping (not in {ALLOWED_CHANNEL_IDS})", flush=True)
+        print(f"Debug: Message from channel {message.channel.id}, skipping", flush=True)
         await bot.process_commands(message)
         return
 
