@@ -8,6 +8,14 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+# 許可するチャンネルIDのリスト（後で変更）
+ALLOWED_CHANNEL_IDS = [
+    1010942568550387713,  # 例: #btc-trading
+    1010942630324076634,
+    949289154498408459,
+    1040300184795623444            # 例: #crypto-updates
+]
+
 def get_usd_jpy_rate():
     try:
         api_key = os.getenv("API_KEY")
@@ -23,11 +31,17 @@ def get_usd_jpy_rate():
 
 @bot.event
 async def on_ready():
-    print(f"{bot.user} が起動しました！(メッセージ削除版)", flush=True)
+    print(f"{bot.user} が起動しました！(複数チャンネル版)", flush=True)
 
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
+        return
+
+    # チャンネルIDをチェック（リスト内に含まれるか）
+    if message.channel.id not in ALLOWED_CHANNEL_IDS:
+        print(f"Debug: Message from channel {message.channel.id}, skipping (not in {ALLOWED_CHANNEL_IDS})", flush=True)
+        await bot.process_commands(message)
         return
 
     content = message.content
@@ -96,14 +110,12 @@ async def on_message(message):
     final_content = "@everyone\n" + new_content
     print("Debug: Sending final content", flush=True)
     
-    # 元のメッセージを削除
     try:
         await message.delete()
         print("Debug: Original message deleted", flush=True)
     except Exception as e:
         print(f"Debug: Failed to delete message: {e}", flush=True)
     
-    # 計算済みのメッセージを送信
     await message.channel.send(final_content)
 
     await bot.process_commands(message)
