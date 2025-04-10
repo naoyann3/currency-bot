@@ -51,7 +51,7 @@ async def on_message(message):
             modified = True
             # 「平均取得単価」の直後のドル金額にレートを追加
             if avg_price_pos != -1 and match.start() > avg_price_pos and "平均取得単価" in new_content[:match.start()]:
-                return f"{result_formatted}円{direction}\n{amount_formatted}ドル\n(レート: 1ドル = {rate:.2f}円)"
+                return f" {result_formatted}円{direction}\n{amount_formatted}ドル\n(レート: 1ドル = {rate:.2f}円)"  # スペースを前に追加
             return f"{result_formatted}円{direction}\n{amount_formatted}ドル"
         except ValueError as e:
             print(f"Debug: Invalid amount {amount_str}: {e}", flush=True)
@@ -80,10 +80,10 @@ async def on_message(message):
         await bot.process_commands(message)
         return
 
-    # 「平均取得単価」のスペースを詰める
-    new_content = new_content.replace("平均取得単価　", "平均取得単価")
+    # 「平均取得単価」のスペース調整（必要なら）
+    new_content = new_content.replace("平均取得単価", "平均取得単価　")  # スペースを保持
 
-    # 「平均取得単価」があればレートはドル金額に付けたので、末尾追加は他にドルがなければ
+    # 「平均取得単価」がない場合のみ末尾にレート
     if avg_price_pos == -1:
         new_content += f"\n(レート: 1ドル = {rate:.2f}円)"
 
