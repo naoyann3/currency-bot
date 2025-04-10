@@ -53,7 +53,7 @@ async def on_message(message):
             base_output = f"{result_formatted}円{direction}\n{amount_formatted}ドル"
             # 「平均取得単価」の直後のドル金額にレートを追加
             if avg_price_pos != -1 and match.start() > avg_price_pos and "平均取得単価" in new_content[:match.start()]:
-                first_dollar = False  # 「平均取得単価」があれば以降レートなし
+                first_dollar = False
                 return f" {result_formatted}円{direction}\n{amount_formatted}ドル\n(レート: 1ドル = {rate:.2f}円)"
             # 最初のドル金額にレートを追加
             elif first_dollar:
