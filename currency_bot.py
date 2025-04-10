@@ -37,10 +37,11 @@ async def on_message(message):
     new_content = content.replace("@everyone", "").strip()
     modified = False
     avg_price_pos = new_content.find("平均取得単価")
+    first_dollar = True  # 最初のドル金額を追跡
 
     # 通常の「◯◯ドル」の置換
     def replace_dollar(match):
-        nonlocal modified
+        nonlocal modified, first_dollar
         amount_str = match.group(1)
         print(f"Debug: Found dollar amount: {amount_str}", flush=True)
         try:
@@ -51,7 +52,11 @@ async def on_message(message):
             modified = True
             # 「平均取得単価」の直後のドル金額にレートを追加
             if avg_price_pos != -1 and match.start() > avg_price_pos and "平均取得単価" in new_content[:match.start()]:
-                return f" {result_formatted}円{direction}\n{amount_formatted}ドル\n(レート: 1ドル = {rate:.2f}円)"  # スペース1つ
+                return f" {result_formatted}円{direction}\n{amount_formatted}ドル\n(レート: 1ドル = {rate:.2f}円)"
+            # 最初のドル金額にレートを追加（「平均取得単価」がない場合）
+            elif first_dollar and avg_price_pos == -1:
+                first_dollar = False
+                return f"{result_formatted}円{direction}\n{amount_formatted}ドル\n(レート: 1ドル = {rate:.2f}円)"
             return f"{result_formatted}円{direction}\n{amount_formatted}ドル"
         except ValueError as e:
             print(f"Debug: Invalid amount {amount_str}: {e}", flush=True)
@@ -80,13 +85,9 @@ async def on_message(message):
         await bot.process_commands(message)
         return
 
-    # スペースの調整（入力のスペースを維持しつつ、重複を防ぐ）
-    new_content = new_content.replace("平均取得単価  ", "平均取得単価　")  # スペース2つを1つに
-    new_content = new_content.replace("平均取得単価   ", "平均取得単価　")  # スペース3つを1つに
-
-    # 「平均取得単価」がない場合のみ末尾にレート
-    if avg_price_pos == -1:
-        new_content += f"\n(レート: 1ドル = {rate:.2f}円)"
+    # スペースの調整
+    new_content = new_content.replace("平均取得単価  ", "平均取得単価　")
+    new_content = new_content.replace("平均取得単価   ", "平均取得単価　")
 
     final_content = "@everyone\n" + new_content
     print("Debug: Sending final content", flush=True)
