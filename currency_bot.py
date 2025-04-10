@@ -60,7 +60,6 @@ async def on_message(message):
             print(f"Debug: Invalid amount {amount_str}: {e}", flush=True)
             return match.group(0)
 
-    # 「平均取得単価」の後だけ特別扱いする部分を一旦削除してシンプルに
     new_content = re.sub(dollar_pattern, replace_dollar, new_content)
     if modified:
         print("Debug: Dollar amounts replaced", flush=True)
@@ -84,10 +83,11 @@ async def on_message(message):
         await bot.process_commands(message)
         return
 
+    # レート情報を「平均取得単価」の後に挿入、なければ末尾に
     if "平均取得単価" in new_content:
         new_content = new_content.replace(
             "平均取得単価",
-            f"平均取得単価\n(レート: 1ドル = {rate:.2f}円)",
+            f"平均取得単価\n{rate:.2f}円より上" if is_support else f"平均取得単価\n{rate:.2f}円より下",
             1
         )
     else:
