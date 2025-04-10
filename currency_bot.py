@@ -9,13 +9,21 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 def get_usd_jpy_rate():
-    rate = 146.59  # 固定レート
-    print(f"Debug: Using fixed rate: {rate}", flush=True)
-    return rate
+    try:
+        api_key = os.getenv("API_KEY")  # 環境変数から取得
+        url = f"https://v6.exchangerate-api.com/v6/{api_key}/latest/USD"
+        response = requests.get(url)
+        data = response.json()
+        rate = data["conversion_rates"]["JPY"]
+        print(f"Debug: Fetched real-time rate: {rate}", flush=True)
+        return rate
+    except Exception as e:
+        print(f"Debug: Error fetching rate: {e}, using fallback 146.59", flush=True)
+        return 146.59  # エラー時は固定値でフォールバック
 
 @bot.event
 async def on_ready():
-    print(f"{bot.user} が起動しました！(再確認版)", flush=True)
+    print(f"{bot.user} が起動しました！(リアルタイム版)", flush=True)
 
 @bot.event
 async def on_message(message):
@@ -37,9 +45,8 @@ async def on_message(message):
     new_content = content.replace("@everyone", "").strip()
     modified = False
     avg_price_pos = new_content.find("平均取得単価")
-    first_dollar = True  # 最初のドル金額を追跡
+    first_dollar = True
 
-    # 通常の「◯◯ドル」の置換
     def replace_dollar(match):
         nonlocal modified, first_dollar
         amount_str = match.group(1)
@@ -51,11 +58,9 @@ async def on_message(message):
             result_formatted = "{:,}".format(result)
             modified = True
             base_output = f"{result_formatted}円{direction}\n{amount_formatted}ドル"
-            # 最初のドル金額にレートを追加
             if first_dollar:
                 first_dollar = False
                 return f"{base_output}\n(レート: 1ドル = {rate:.2f}円)"
-            # 「平均取得単価」の直後のドル金額（レートなし）
             elif avg_price_pos != -1 and match.start() > avg_price_pos and "平均取得単価" in new_content[:match.start()]:
                 return f"{result_formatted}円{direction}\n{amount_formatted}ドル"
             return base_output
@@ -67,7 +72,6 @@ async def on_message(message):
     if modified:
         print("Debug: Dollar amounts replaced", flush=True)
 
-    # 「CME窓 赤丸◯◯」の置換
     def replace_cme(match):
         nonlocal modified
         amount_str = match.group(1)
@@ -86,7 +90,6 @@ async def on_message(message):
         await bot.process_commands(message)
         return
 
-    # スペースの調整
     new_content = new_content.replace("平均取得単価  ", "平均取得単価　")
     new_content = new_content.replace("平均取得単価   ", "平均取得単価　")
 
