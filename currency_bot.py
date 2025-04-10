@@ -8,12 +8,10 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# 許可するチャンネルIDのリスト（後で変更）
 ALLOWED_CHANNEL_IDS = [
-    1010942568550387713,  # 例: #btc-trading
-    1010942630324076634,
-    949289154498408459,
-    1040300184795623444            # 例: #crypto-updates
+    1010942568550387713,  # #btc-trading
+    1010942630324076634   # #crypto-updates
+    # テスト用に追加した分は後で削除可
 ]
 
 def get_usd_jpy_rate():
@@ -35,10 +33,12 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
-    if message.author == bot.user:
+    # 重複処理防止
+    if message.author == bot.user or hasattr(message, "_processed"):
         return
+    message._processed = True  # 処理済みフラグをセット
 
-    # チャンネルIDをチェック（リスト内に含まれるか）
+    # チャンネルIDをチェック
     if message.channel.id not in ALLOWED_CHANNEL_IDS:
         print(f"Debug: Message from channel {message.channel.id}, skipping (not in {ALLOWED_CHANNEL_IDS})", flush=True)
         await bot.process_commands(message)
