@@ -11,8 +11,10 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 ALLOWED_CHANNEL_IDS = [
     1010942568550387713,  # #btc-trading
     1010942630324076634   # #crypto-updates
-    # テスト用に追加した分は後で削除可
 ]
+
+# 処理済みメッセージIDを記録するセット
+PROCESSED_MESSAGE_IDS = set()
 
 def get_usd_jpy_rate():
     try:
@@ -33,10 +35,10 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
-    # 重複処理防止
-    if message.author == bot.user or hasattr(message, "_processed"):
+    # 重複処理防止（メッセージIDをチェック）
+    if message.author == bot.user or message.id in PROCESSED_MESSAGE_IDS:
         return
-    message._processed = True  # 処理済みフラグをセット
+    PROCESSED_MESSAGE_IDS.add(message.id)  # 処理済みIDを追加
 
     # チャンネルIDをチェック
     if message.channel.id not in ALLOWED_CHANNEL_IDS:
