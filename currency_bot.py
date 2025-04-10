@@ -83,13 +83,19 @@ async def on_message(message):
         await bot.process_commands(message)
         return
 
-    # レート情報を「平均取得単価」の後に挿入、なければ末尾に
-    if "平均取得単価" in new_content:
-        new_content = new_content.replace(
-            "平均取得単価",
-            f"平均取得単価\n{rate:.2f}円より上" if is_support else f"平均取得単価\n{rate:.2f}円より下",
-            1
-        )
+    # レートを「平均取得単価」の直下に挿入
+    avg_price_pos = new_content.find("平均取得単価")
+    if avg_price_pos != -1:
+        # 「平均取得単価」の次の改行位置を探す
+        next_newline = new_content.find("\n", avg_price_pos)
+        if next_newline == -1:
+            new_content += f"\n(レート: 1ドル = {rate:.2f}円)"
+        else:
+            new_content = (
+                new_content[:next_newline] +
+                f"\n(レート: 1ドル = {rate:.2f}円)" +
+                new_content[next_newline:]
+            )
     else:
         new_content += f"\n(レート: 1ドル = {rate:.2f}円)"
 
