@@ -54,7 +54,7 @@ async def on_message(message):
             if avg_price_pos != -1 and match.start() > avg_price_pos and "平均取得単価" in new_content[:match.start()]:
                 return f" {result_formatted}円{direction}\n{amount_formatted}ドル\n(レート: 1ドル = {rate:.2f}円)"
             # 最初のドル金額にレートを追加（「平均取得単価」がない場合）
-            elif first_dollar and avg_price_pos == -1:
+            elif first_dollar:
                 first_dollar = False
                 return f"{result_formatted}円{direction}\n{amount_formatted}ドル\n(レート: 1ドル = {rate:.2f}円)"
             return f"{result_formatted}円{direction}\n{amount_formatted}ドル"
