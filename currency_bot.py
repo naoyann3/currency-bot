@@ -19,16 +19,16 @@ PROCESSED_MESSAGE_IDS = set()
 
 def get_usd_jpy_rate():
     try:
-        api_key = os.getenv("API_KEY")
-        url = f"https://v6.exchangerate-api.com/v6/{api_key}/latest/USD"
+        api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
+        url = f"https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=USD&to_currency=JPY&apikey={api_key}"
         response = requests.get(url)
         data = response.json()
-        rate = data["conversion_rates"]["JPY"]
+        rate = float(data["Realtime Currency Exchange Rate"]["5. Exchange Rate"])
         print(f"Debug: Fetched real-time rate: {rate}", flush=True)
         return rate
     except Exception as e:
-        print(f"Debug: Error fetching rate: {e}, using fallback 146.59", flush=True)
-        return 146.59
+        print(f"Debug: Error fetching rate: {e}, using fallback 144.75", flush=True)
+        return 144.75
 
 @bot.event
 async def on_ready():
