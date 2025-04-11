@@ -12,7 +12,7 @@ ALLOWED_CHANNEL_IDS = [
     1010942568550387713,  # #btc-trading
     1010942630324076634,
     949289154498408459,
-    1040300184795623444      # #crypto-updates
+    1040300184795623444   # #crypto-updates
 ]
 
 PROCESSED_MESSAGE_IDS = set()
@@ -91,12 +91,16 @@ async def on_message(message):
         nonlocal modified
         amount_str = match.group(1)
         print(f"Debug: Found CME amount: {amount_str}", flush=True)
-        amount_float = float(amount_str)
-        result = int(amount_float * rate)
-        amount_formatted = "{:,}".format(int(amount_float))
-        result_formatted = "{:,}".format(result)
-        modified = True
-        return f"{result_formatted}円{direction}\nCME窓 赤丸{amount_formatted}ドル"
+        try:
+            amount_float = float(amount_str)
+            result = int(amount_float * rate)
+            amount_formatted = "{:,}".format(int(amount_float))
+            result_formatted = "{:,}".format(result)
+            modified = True
+            return f"{result_formatted}円{direction}\nCME窓 赤丸{amount_formatted}ドル"
+        except ValueError as e:
+            print(f"Debug: Invalid amount {amount_str}: {e}", flush=True)
+            return match.group(0)
 
     new_content = re.sub(cme_pattern, replace_cme, new_content)
 
@@ -115,7 +119,7 @@ async def on_message(message):
         await message.delete()
         print("Debug: Original message deleted", flush=True)
     except discord.HTTPException as e:
-        print(f"Debug: Could not delete message: {e}", flush=True)
+        print(f"Debug: Could not delete message in channel {message.channel.id}: {e}", flush=True)
         if e.code != 10008:  # 404 Not Found
             raise  # 他のエラーは再発信
     
