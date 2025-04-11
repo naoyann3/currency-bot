@@ -15,8 +15,7 @@ ALLOWED_CHANNEL_IDS = [
     1040300184795623444,  # 運営部屋全般改善部屋
     981557309526384753,   # 会員部屋レジスタンス部屋
     981557399032823869,   # 会員部屋サポート部屋
-    1360244219486273674,  # 会員部屋サポートライン確認部屋
-    1360265671656739058   # 会員部屋レジスタンスライン確認部屋
+    1360244219486273674   # 会員部屋サポート/レジスタンスライン確認部屋
 ]
 
 PROCESSED_MESSAGE_IDS = set()
@@ -61,7 +60,7 @@ async def on_message(message):
     print(f"Debug: is_support={is_support}, is_resistance={is_resistance}, direction={direction}", flush=True)
 
     rate = get_usd_jpy_rate()
-    new_content = content.replace("@everyone", "").strip()
+    new_content = content.replace("@everyone", "").strip()  # @everyoneを削除
     modified = False
     avg_price_pos = new_content.find("平均取得単価")
     first_dollar = True
@@ -116,10 +115,9 @@ async def on_message(message):
     new_content = new_content.replace("平均取得単価  ", "平均取得単価　")
     new_content = new_content.replace("平均取得単価   ", "平均取得単価　")
 
-    final_content = "@everyone\n" + new_content
-    print("Debug: Sending final content", flush=True)
-    
-    await message.channel.send(final_content)  # 削除なしでそのまま送信
+    final_content = new_content  # @everyoneを追加しない
+    print(f"Debug: Final content sent: {final_content[:100]}...", flush=True)  # ログ追加
+    await message.channel.send(final_content)
 
     await bot.process_commands(message)
 
