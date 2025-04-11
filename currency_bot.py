@@ -9,10 +9,10 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 ALLOWED_CHANNEL_IDS = [
-    1010942568550387713,  # #btc-trading
-    1010942630324076634,
-    949289154498408459,
-    1040300184795623444   # #crypto-updates
+    1010942568550387713,  # テスト一般会員部屋サポートライン
+    1010942630324076634,  # テスト一般会員部屋レジスタンスライン
+    949289154498408459,   # 運営部屋運営ボイチャ雑談
+    1040300184795623444   # 運営部屋全般改善部屋
 ]
 
 PROCESSED_MESSAGE_IDS = set()
@@ -27,8 +27,8 @@ def get_usd_jpy_rate():
         print(f"Debug: Fetched real-time rate: {rate}", flush=True)
         return rate
     except Exception as e:
-        print(f"Debug: Error fetching rate: {e}, using fallback 144.75", flush=True)
-        return 144.75
+        print(f"Debug: Error fetching rate: {e}, using fallback 143.20", flush=True)
+        return 143.20
 
 @bot.event
 async def on_ready():
@@ -115,15 +115,7 @@ async def on_message(message):
     final_content = "@everyone\n" + new_content
     print("Debug: Sending final content", flush=True)
     
-    try:
-        await message.delete()
-        print("Debug: Original message deleted", flush=True)
-    except discord.HTTPException as e:
-        print(f"Debug: Could not delete message in channel {message.channel.id}: {e}", flush=True)
-        if e.code != 10008:  # 404 Not Found
-            raise  # 他のエラーは再発信
-    
-    await message.channel.send(final_content)
+    await message.channel.send(final_content)  # 削除なしでそのまま送信
 
     await bot.process_commands(message)
 
