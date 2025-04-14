@@ -22,10 +22,21 @@ ALLOWED_CHANNEL_IDS = [
     1360265671656739058   # 会員部屋レジスタンスライン確認部屋
 ]
 
+ERROR_NOTIFY_CHANNEL_ID = 949289154498408459  # 例: 運営ボイチャ雑談チャンネル
 PROCESSED_MESSAGE_IDS = set()
 LAST_RATE = None
 LAST_RATE_TIME = None
 RATE_CACHE_DURATION = 300  # 5分（秒）
+
+async def notify_error(channel_id, error_message):
+    try:
+        channel = bot.get_channel(channel_id)
+        if channel:
+            await channel.send(f"⚠ Botエラー通知: {error_message}")
+        else:
+            print(f"Debug: Error notification channel {channel_id} not found", flush=True)
+    except Exception as e:
+        print(f"Debug: Failed to send error notification: {e}", flush=True)
 
 def get_usd_jpy_rate():
     global LAST_RATE, LAST_RATE_TIME
@@ -39,10 +50,10 @@ def get_usd_jpy_rate():
     api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
     url = f"https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=USD&to_currency=JPY&apikey={api_key}"
     
-    for attempt in range(3):  # 最大3回リトライ
+    for attempt in range(3):
         try:
             response = requests.get(url, timeout=5)
-            response.raise_for_status()  # HTTPエラーをチェック
+            response.raise_for_status()
             data = response.json()
             
             if "Realtime Currency Exchange Rate" not in data:
@@ -58,12 +69,14 @@ def get_usd_jpy_rate():
         except (requests.RequestException, ValueError, KeyError) as e:
             print(f"Debug: Attempt {attempt + 1} failed: {str(e)}", flush=True)
             if attempt < 2:
-                time.sleep(2 ** attempt)  # 1秒、2秒と待機時間を増やす
+                time.sleep(2 ** attempt)
             else:
-                print("Debug: All retries failed, using fallback rate 145.00", flush=True)
-                LAST_RATE = 143.00
+                fallback_rate = LAST_RATE if LAST_RATE else 143.00
+                print(f"Debug: All retries failed, using fallback rate {fallback_rate}", flush=True)
+                LAST_RATE = fallback_rate
                 LAST_RATE_TIME = current_time
-                return 145.00
+                bot.loop.create_task(notify_error(ERROR_NOTIFY_CHANNEL_ID, f"APIエラー: レート取得失敗、フォールバック {fallback_rate} を使用"))
+                return fallback_rate
 
 @bot.event
 async def on_ready():
@@ -88,7 +101,7 @@ async def on_message(message):
     print(f"Debug: Received message: {content[:100]}...", flush=True)
 
     rate = get_usd_jpy_rate()
-    new_content = content.replace("@everyone", "").strip()  # @everyoneを削除
+    new_content = content.replace("@everyone", "").strip()
     modified = False
     avg_price_pos = new_content.find("平均取得単価")
     first_dollar = True
