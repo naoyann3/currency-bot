@@ -55,11 +55,6 @@ async def on_message(message):
 
     print(f"Debug: Received message: {content[:100]}...", flush=True)
 
-    is_support = "サポートライン" in content
-    is_resistance = "レジスタンスライン" in content
-    direction = "より上" if is_support else "より下" if is_resistance else "付近"
-    print(f"Debug: is_support={is_support}, is_resistance={is_resistance}, direction={direction}", flush=True)
-
     rate = get_usd_jpy_rate()
     new_content = content.replace("@everyone", "").strip()  # @everyoneを削除
     modified = False
@@ -76,12 +71,12 @@ async def on_message(message):
             amount_formatted = "{:,}".format(int(amount_float))
             result_formatted = "{:,}".format(result)
             modified = True
-            base_output = f"{result_formatted}円{direction}\n{amount_formatted}ドル"
+            base_output = f"{result_formatted}円\n{amount_formatted}ドル"
             if first_dollar:
                 first_dollar = False
                 return f"{base_output}\n(レート: 1ドル = {rate:.2f}円)"
             elif avg_price_pos != -1 and match.start() > avg_price_pos and "平均取得単価" in new_content[:match.start()]:
-                return f"{result_formatted}円{direction}\n{amount_formatted}ドル"
+                return f"{result_formatted}円\n{amount_formatted}ドル"
             return base_output
         except ValueError as e:
             print(f"Debug: Invalid amount {amount_str}: {e}", flush=True)
@@ -101,7 +96,7 @@ async def on_message(message):
             amount_formatted = "{:,}".format(int(amount_float))
             result_formatted = "{:,}".format(result)
             modified = True
-            return f"{result_formatted}円{direction}\nCME窓 赤丸{amount_formatted}ドル"
+            return f"{result_formatted}円\nCME窓 赤丸{amount_formatted}ドル"
         except ValueError as e:
             print(f"Debug: Invalid amount {amount_str}: {e}", flush=True)
             return match.group(0)
@@ -117,7 +112,7 @@ async def on_message(message):
     new_content = new_content.replace("平均取得単価   ", "平均取得単価　")
 
     final_content = new_content  # @everyoneを追加しない
-    print(f"Debug: Final content sent: {final_content[:100]}...", flush=True)  # ログ追加
+    print(f"Debug: Final content sent: {final_content[:100]}...", flush=True)
     await message.channel.send(final_content)
 
     await bot.process_commands(message)
