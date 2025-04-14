@@ -3,6 +3,9 @@ from discord.ext import commands
 import requests
 import re
 import os
+import time
+import json
+from datetime import datetime, timedelta
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -20,19 +23,47 @@ ALLOWED_CHANNEL_IDS = [
 ]
 
 PROCESSED_MESSAGE_IDS = set()
+LAST_RATE = None
+LAST_RATE_TIME = None
+RATE_CACHE_DURATION = 300  # 5分（秒）
 
 def get_usd_jpy_rate():
-    try:
-        api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
-        url = f"https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=USD&to_currency=JPY&apikey={api_key}"
-        response = requests.get(url)
-        data = response.json()
-        rate = float(data["Realtime Currency Exchange Rate"]["5. Exchange Rate"])
-        print(f"Debug: Fetched real-time rate: {rate}", flush=True)
-        return rate
-    except Exception as e:
-        print(f"Debug: Error fetching rate: {e}, using fallback 143.20", flush=True)
-        return 143.20
+    global LAST_RATE, LAST_RATE_TIME
+    current_time = datetime.utcnow()
+
+    # キャッシュが有効かチェック
+    if LAST_RATE and LAST_RATE_TIME and (current_time - LAST_RATE_TIME).total_seconds() < RATE_CACHE_DURATION:
+        print(f"Debug: Using cached rate: {LAST_RATE}", flush=True)
+        return LAST_RATE
+
+    api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
+    url = f"https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=USD&to_currency=JPY&apikey={api_key}"
+    
+    for attempt in range(3):  # 最大3回リトライ
+        try:
+            response = requests.get(url, timeout=5)
+            response.raise_for_status()  # HTTPエラーをチェック
+            data = response.json()
+            
+            if "Realtime Currency Exchange Rate" not in data:
+                print(f"Debug: Invalid API response: {json.dumps(data, indent=2)}", flush=True)
+                raise ValueError("Invalid API response")
+                
+            rate = float(data["Realtime Currency Exchange Rate"]["5. Exchange Rate"])
+            LAST_RATE = rate
+            LAST_RATE_TIME = current_time
+            print(f"Debug: Fetched real-time rate: {rate}", flush=True)
+            return rate
+            
+        except (requests.RequestException, ValueError, KeyError) as e:
+            print(f"Debug: Attempt {attempt + 1} failed: {str(e)}", flush=True)
+            if attempt < 2:
+                time.sleep(2 ** attempt)  # 1秒、2秒と待機時間を増やす
+            else:
+                print("Debug: All retries failed, using fallback rate 145.00", flush=True)
+                LAST_RATE = 143.00
+                LAST_RATE_TIME = current_time
+                return 145.00
 
 @bot.event
 async def on_ready():
@@ -45,7 +76,7 @@ async def on_message(message):
     PROCESSED_MESSAGE_IDS.add(message.id)
 
     if message.channel.id not in ALLOWED_CHANNEL_IDS:
-        print(f"Debug: Message from channel {message.channel.id}, skipping", flush=True)
+        print(f"Debug: Message from channel {message.channel.id} (not allowed), skipping", flush=True)
         await bot.process_commands(message)
         return
 
@@ -53,6 +84,7 @@ async def on_message(message):
     dollar_pattern = r"(\d+)ドル"
     cme_pattern = r"CME窓[　\s]+赤丸(\d+)(?![ドル])"
 
+    print(f"Debug: Processing message in channel {message.channel.id} ({message.channel.name}), ID: {message.id}", flush=True)
     print(f"Debug: Received message: {content[:100]}...", flush=True)
 
     rate = get_usd_jpy_rate()
@@ -111,8 +143,8 @@ async def on_message(message):
     new_content = new_content.replace("平均取得単価  ", "平均取得単価　")
     new_content = new_content.replace("平均取得単価   ", "平均取得単価　")
 
-    final_content = new_content  # @everyoneを追加しない
-    print(f"Debug: Final content sent: {final_content[:100]}...", flush=True)
+    final_content = new_content
+    print(f"Debug: Sending message in channel {message.channel.id} ({message.channel.name}): {final_content[:100]}...", flush=True)
     await message.channel.send(final_content)
 
     await bot.process_commands(message)
