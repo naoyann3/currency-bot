@@ -22,7 +22,7 @@ ALLOWED_CHANNEL_IDS = [
     1360265671656739058   # 会員部屋レジスタンスライン確認部屋
 ]
 
-ERROR_NOTIFY_CHANNEL_ID = 949289154498408459  # 例: 運営ボイチャ雑談チャンネル
+ERROR_NOTIFY_CHANNEL_ID = 949289154498408459
 PROCESSED_MESSAGE_IDS = set()
 LAST_RATE = None
 LAST_RATE_TIME = None
@@ -42,7 +42,6 @@ def get_usd_jpy_rate():
     global LAST_RATE, LAST_RATE_TIME
     current_time = datetime.utcnow()
 
-    # キャッシュが有効かチェック
     if LAST_RATE and LAST_RATE_TIME and (current_time - LAST_RATE_TIME).total_seconds() < RATE_CACHE_DURATION:
         print(f"Debug: Using cached rate: {LAST_RATE}", flush=True)
         return LAST_RATE
@@ -67,11 +66,11 @@ def get_usd_jpy_rate():
             return rate
             
         except (requests.RequestException, ValueError, KeyError) as e:
-            print(f"Debug: Attempt {attempt + 1} failed: {str(e)}", flush=True)
+            print(f"Debug: Attempt {attempt + 1} failed: {str(e)}, Status Code: {response.status_code if response else 'N/A'}", flush=True)
             if attempt < 2:
                 time.sleep(2 ** attempt)
             else:
-                fallback_rate = LAST_RATE if LAST_RATE else 143.00
+                fallback_rate = LAST_RATE if LAST_RATE else 145.00
                 print(f"Debug: All retries failed, using fallback rate {fallback_rate}", flush=True)
                 LAST_RATE = fallback_rate
                 LAST_RATE_TIME = current_time
@@ -89,7 +88,7 @@ async def on_message(message):
     PROCESSED_MESSAGE_IDS.add(message.id)
 
     if message.channel.id not in ALLOWED_CHANNEL_IDS:
-        print(f"Debug: Message from channel {message.channel.id} (not allowed), skipping", flush=True)
+        print(f"Debug: Skipped message in channel {message.channel.id} ({message.channel.name}), ID: {message.id}, Content: {message.content[:100]}...", flush=True)
         await bot.process_commands(message)
         return
 
