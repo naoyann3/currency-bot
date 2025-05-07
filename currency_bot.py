@@ -3,6 +3,7 @@ from discord.ext import commands
 import requests
 import re
 import os
+import json
 from datetime import datetime
 
 intents = discord.Intents.default()
@@ -20,15 +21,37 @@ ALLOWED_CHANNEL_IDS = [
     1360265671656739058   # 会員部屋レジスタンスライン確認部屋
 ]
 
-PROCESSED_MESSAGE_IDS = set()
+PROCESSED_MESSAGE_IDS_FILE = "processed_message_ids.json"
+
+def load_processed_message_ids():
+    try:
+        if os.path.exists(PROCESSED_MESSAGE_IDS_FILE):
+            with open(PROCESSED_MESSAGE_IDS_FILE, "r") as f:
+                return set(json.load(f))
+        return set()
+    except Exception as e:
+        print(f"Debug: Error loading processed IDs: {e}", flush=True)
+        return set()
+
+def save_processed_message_ids(message_ids):
+    try:
+        with open(PROCESSED_MESSAGE_IDS_FILE, "w") as f:
+            json.dump(list(message_ids), f)
+    except Exception as e:
+        print(f"Debug: Error saving processed IDs: {e}", flush=True)
+
+PROCESSED_MESSAGE_IDS = load_processed_message_ids()
 LAST_SKIPPED_MESSAGE_ID = None
 LAST_RATE = None
 LAST_RATE_TIME = None
-RATE_CACHE_DURATION = 300  # 5分（秒）
+RATE_CACHE_DURATION = 1800  # 30分（秒）
 
 async def notify_error(error_message):
-    owner = await bot.fetch_user(666441601173946380)  # あなたのユーザーID
-    await owner.send(f"Botエラー: {error_message}\n詳細ログを確認してください: Renderダッシュボード")
+    channel = bot.get_channel(949289154498408459)  # 運営ボイチャ雑談
+    if channel:
+        await channel.send(f"Botエラー: {error_message}\n詳細ログを確認してください: Renderダッシュボード")
+    else:
+        print(f"Debug: Failed to find channel 949289154498408459 for error notification", flush=True)
 
 def get_usd_jpy_rate():
     global LAST_RATE, LAST_RATE_TIME
@@ -39,17 +62,12 @@ def get_usd_jpy_rate():
         return LAST_RATE
 
     try:
-        api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
-        url = f"https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=USD&to_currency=JPY&apikey={api_key}"
+        url = f"https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=USD&to_currency=JPY&apikey={os.getenv('ALPHA_VANTAGE_API_KEY')}"
         response = requests.get(url, timeout=5)
         data = response.json()
         print(f"Debug: Raw API response: {data}", flush=True)
-        if "Error Message" in data:
-            error_message = f"Invalid API response: {data['Error Message']}"
-            bot.loop.create_task(notify_error(error_message))
-            raise ValueError(error_message)
-        if "Information" in data and "rate limit" in data["Information"].lower():
-            error_message = f"API rate limit exceeded: {data['Information']}"
+        if "Realtime Currency Exchange Rate" not in data:
+            error_message = f"Invalid API response: {data.get('Information', 'Unknown error')}"
             bot.loop.create_task(notify_error(error_message))
             raise ValueError(error_message)
         rate = float(data["Realtime Currency Exchange Rate"]["5. Exchange Rate"])
@@ -74,6 +92,7 @@ async def on_message(message):
     if message.author == bot.user or message.id in PROCESSED_MESSAGE_IDS:
         return
     PROCESSED_MESSAGE_IDS.add(message.id)
+    save_processed_message_ids(PROCESSED_MESSAGE_IDS)
 
     if message.channel.id not in ALLOWED_CHANNEL_IDS:
         if LAST_SKIPPED_MESSAGE_ID != message.id:
