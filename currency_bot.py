@@ -26,7 +26,7 @@ LAST_RATE_TIME = None
 RATE_CACHE_DURATION = 300  # 5分（秒）
 
 async def notify_error(error_message):
-    owner = await bot.fetch_user(YOUR_USER_ID)  # あなたのユーザーID
+    owner = await bot.fetch_user(666441601173946380)  # あなたのユーザーID
     await owner.send(f"Botエラー: {error_message}")
 
 def get_usd_jpy_rate():
