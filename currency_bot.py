@@ -21,13 +21,14 @@ ALLOWED_CHANNEL_IDS = [
 ]
 
 PROCESSED_MESSAGE_IDS = set()
+LAST_SKIPPED_MESSAGE_ID = None
 LAST_RATE = None
 LAST_RATE_TIME = None
 RATE_CACHE_DURATION = 300  # 5分（秒）
 
 async def notify_error(error_message):
     owner = await bot.fetch_user(666441601173946380)  # あなたのユーザーID
-    await owner.send(f"Botエラー: {error_message}")
+    await owner.send(f"Botエラー: {error_message}\n詳細ログを確認してください: Renderダッシュボード")
 
 def get_usd_jpy_rate():
     global LAST_RATE, LAST_RATE_TIME
@@ -47,17 +48,21 @@ def get_usd_jpy_rate():
             error_message = f"Invalid API response: {data['Error Message']}"
             bot.loop.create_task(notify_error(error_message))
             raise ValueError(error_message)
+        if "Information" in data and "rate limit" in data["Information"].lower():
+            error_message = f"API rate limit exceeded: {data['Information']}"
+            bot.loop.create_task(notify_error(error_message))
+            raise ValueError(error_message)
         rate = float(data["Realtime Currency Exchange Rate"]["5. Exchange Rate"])
         print(f"Debug: Fetched real-time rate: {rate}", flush=True)
         LAST_RATE = rate
         LAST_RATE_TIME = now
         return rate
     except Exception as e:
-        print(f"Debug: Error fetching rate: {e}, using fallback 143.20", flush=True)
+        print(f"Debug: Error fetching rate: {e}, using fallback 150.00", flush=True)
         bot.loop.create_task(notify_error(f"Error fetching rate: {e}"))
         LAST_RATE = 143.20
         LAST_RATE_TIME = now
-        return 143.20
+        return 150.00
 
 @bot.event
 async def on_ready():
@@ -65,12 +70,15 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
+    global LAST_SKIPPED_MESSAGE_ID
     if message.author == bot.user or message.id in PROCESSED_MESSAGE_IDS:
         return
     PROCESSED_MESSAGE_IDS.add(message.id)
 
     if message.channel.id not in ALLOWED_CHANNEL_IDS:
-        print(f"Debug: Skipped message in channel {message.channel.id} ({message.channel.name}), ID: {message.id}, Content: {message.content[:100]}...", flush=True)
+        if LAST_SKIPPED_MESSAGE_ID != message.id:
+            print(f"Debug: Skipped message in channel {message.channel.id} ({message.channel.name}), ID: {message.id}, Content: {message.content[:100]}...", flush=True)
+            LAST_SKIPPED_MESSAGE_ID = message.id
         await bot.process_commands(message)
         return
 
