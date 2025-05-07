@@ -24,10 +24,10 @@ PROCESSED_MESSAGE_IDS = set()
 LAST_SKIPPED_MESSAGE_ID = None
 LAST_RATE = None
 LAST_RATE_TIME = None
-RATE_CACHE_DURATION = 1800  # 30分（秒）
+RATE_CACHE_DURATION = 300  # 5分（秒）
 
 async def notify_error(error_message):
-    owner = await bot.fetch_user(666441601173946380)
+    owner = await bot.fetch_user(666441601173946380)  # あなたのユーザーID
     await owner.send(f"Botエラー: {error_message}\n詳細ログを確認してください: Renderダッシュボード")
 
 def get_usd_jpy_rate():
@@ -39,15 +39,20 @@ def get_usd_jpy_rate():
         return LAST_RATE
 
     try:
-        url = "https://api.exchangerate-api.com/v4/latest/USD"
+        api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
+        url = f"https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=USD&to_currency=JPY&apikey={api_key}"
         response = requests.get(url, timeout=5)
         data = response.json()
         print(f"Debug: Raw API response: {data}", flush=True)
-        if "error" in data:
-            error_message = f"API error: {data['error']}"
+        if "Error Message" in data:
+            error_message = f"Invalid API response: {data['Error Message']}"
             bot.loop.create_task(notify_error(error_message))
             raise ValueError(error_message)
-        rate = float(data["rates"]["JPY"])
+        if "Information" in data and "rate limit" in data["Information"].lower():
+            error_message = f"API rate limit exceeded: {data['Information']}"
+            bot.loop.create_task(notify_error(error_message))
+            raise ValueError(error_message)
+        rate = float(data["Realtime Currency Exchange Rate"]["5. Exchange Rate"])
         print(f"Debug: Fetched real-time rate: {rate}", flush=True)
         LAST_RATE = rate
         LAST_RATE_TIME = now
