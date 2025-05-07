@@ -3,7 +3,9 @@ from discord.ext import commands
 import requests
 import re
 import os
-from datetime import datetime
+import time
+import json
+from datetime import datetime, timedelta
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -20,44 +22,60 @@ ALLOWED_CHANNEL_IDS = [
     1360265671656739058   # 会員部屋レジスタンスライン確認部屋
 ]
 
+ERROR_NOTIFY_CHANNEL_ID = 949289154498408459
 PROCESSED_MESSAGE_IDS = set()
 LAST_RATE = None
 LAST_RATE_TIME = None
 RATE_CACHE_DURATION = 300  # 5分（秒）
 
-async def notify_error(error_message):
-    owner = await bot.fetch_user(YOUR_USER_ID)  # あなたのユーザーID
-    await owner.send(f"Botエラー: {error_message}")
+async def notify_error(channel_id, error_message):
+    try:
+        channel = bot.get_channel(channel_id)
+        if channel:
+            await channel.send(f"⚠ Botエラー通知: {error_message}")
+        else:
+            print(f"Debug: Error notification channel {channel_id} not found", flush=True)
+    except Exception as e:
+        print(f"Debug: Failed to send error notification: {e}", flush=True)
 
 def get_usd_jpy_rate():
     global LAST_RATE, LAST_RATE_TIME
-    now = datetime.now()
+    current_time = datetime.utcnow()
 
-    if LAST_RATE and LAST_RATE_TIME and (now - LAST_RATE_TIME).total_seconds() < RATE_CACHE_DURATION:
+    if LAST_RATE and LAST_RATE_TIME and (current_time - LAST_RATE_TIME).total_seconds() < RATE_CACHE_DURATION:
         print(f"Debug: Using cached rate: {LAST_RATE}", flush=True)
         return LAST_RATE
 
-    try:
-        api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
-        url = f"https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=USD&to_currency=JPY&apikey={api_key}"
-        response = requests.get(url, timeout=5)
-        data = response.json()
-        print(f"Debug: Raw API response: {data}", flush=True)  # レスポンス全体をログ
-        if "Error Message" in data:
-            error_message = f"Invalid API response: {data['Error Message']}"
-            bot.loop.create_task(notify_error(error_message))
-            raise ValueError(error_message)
-        rate = float(data["Realtime Currency Exchange Rate"]["5. Exchange Rate"])
-        print(f"Debug: Fetched real-time rate: {rate}", flush=True)
-        LAST_RATE = rate
-        LAST_RATE_TIME = now
-        return rate
-    except Exception as e:
-        print(f"Debug: Error fetching rate: {e}, using fallback 143.20", flush=True)
-        bot.loop.create_task(notify_error(f"Error fetching rate: {e}"))
-        LAST_RATE = 143.20
-        LAST_RATE_TIME = now
-        return 143.20
+    api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
+    url = f"https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=USD&to_currency=JPY&apikey={api_key}"
+    
+    for attempt in range(3):
+        try:
+            response = requests.get(url, timeout=5)
+            response.raise_for_status()
+            data = response.json()
+            
+            if "Realtime Currency Exchange Rate" not in data:
+                print(f"Debug: Invalid API response: {json.dumps(data, indent=2)}", flush=True)
+                raise ValueError("Invalid API response")
+                
+            rate = float(data["Realtime Currency Exchange Rate"]["5. Exchange Rate"])
+            LAST_RATE = rate
+            LAST_RATE_TIME = current_time
+            print(f"Debug: Fetched real-time rate: {rate}", flush=True)
+            return rate
+            
+        except (requests.RequestException, ValueError, KeyError) as e:
+            print(f"Debug: Attempt {attempt + 1} failed: {str(e)}, Status Code: {response.status_code if response else 'N/A'}", flush=True)
+            if attempt < 2:
+                time.sleep(2 ** attempt)
+            else:
+                fallback_rate = LAST_RATE if LAST_RATE else 145.00
+                print(f"Debug: All retries failed, using fallback rate {fallback_rate}", flush=True)
+                LAST_RATE = fallback_rate
+                LAST_RATE_TIME = current_time
+                bot.loop.create_task(notify_error(ERROR_NOTIFY_CHANNEL_ID, f"APIエラー: レート取得失敗、フォールバック {fallback_rate} を使用"))
+                return fallback_rate
 
 @bot.event
 async def on_ready():
@@ -81,11 +99,6 @@ async def on_message(message):
     print(f"Debug: Processing message in channel {message.channel.id} ({message.channel.name}), ID: {message.id}", flush=True)
     print(f"Debug: Received message: {content[:100]}...", flush=True)
 
-    is_support = "サポートライン" in content
-    is_resistance = "レジスタンスライン" in content
-    direction = "より上" if is_support else "より下" if is_resistance else "付近"
-    print(f"Debug: is_support={is_support}, is_resistance={is_resistance}, direction={direction}", flush=True)
-
     rate = get_usd_jpy_rate()
     new_content = content.replace("@everyone", "").strip()
     modified = False
@@ -102,12 +115,12 @@ async def on_message(message):
             amount_formatted = "{:,}".format(int(amount_float))
             result_formatted = "{:,}".format(result)
             modified = True
-            base_output = f"{result_formatted}円{direction}\n{amount_formatted}ドル"
+            base_output = f"{result_formatted}円\n{amount_formatted}ドル"
             if first_dollar:
                 first_dollar = False
                 return f"{base_output}\n(レート: 1ドル = {rate:.2f}円)"
             elif avg_price_pos != -1 and match.start() > avg_price_pos and "平均取得単価" in new_content[:match.start()]:
-                return f"{result_formatted}円{direction}\n{amount_formatted}ドル"
+                return f"{result_formatted}円\n{amount_formatted}ドル"
             return base_output
         except ValueError as e:
             print(f"Debug: Invalid amount {amount_str}: {e}", flush=True)
@@ -127,7 +140,7 @@ async def on_message(message):
             amount_formatted = "{:,}".format(int(amount_float))
             result_formatted = "{:,}".format(result)
             modified = True
-            return f"{result_formatted}円{direction}\nCME窓 赤丸{amount_formatted}ドル"
+            return f"{result_formatted}円\nCME窓 赤丸{amount_formatted}ドル"
         except ValueError as e:
             print(f"Debug: Invalid amount {amount_str}: {e}", flush=True)
             return match.group(0)
