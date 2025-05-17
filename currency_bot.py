@@ -62,7 +62,7 @@ def get_usd_jpy_rate():
         return LAST_RATE
 
     try:
-        url = f"https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=USD&to_currency=JPY&apikey={os.getenv('ALPHA_VANTAGE_API_KEY')}"
+        url = f"https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=USD&to_currency=JPY&apikey=INVALID_KEY"
         response = requests.get(url, timeout=5)
         data = response.json()
         print(f"Debug: Raw API response: {data}", flush=True)
