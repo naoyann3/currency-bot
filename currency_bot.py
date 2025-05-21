@@ -42,7 +42,11 @@ def get_usd_jpy_rate():
         data = response.json()
         print(f"Debug: Raw API response: {data}", flush=True)
         if "rates" not in data or "JPY" not in data["rates"]:
-            error_message = f"Invalid API response: {data.get('error', 'Unknown error')}"
+            error_message = f"Invalid API response: {data.get('error', 'Unknown error')}, response: {response.text}"
+            bot.loop.create_task(notify_error(error_message))
+            raise ValueError(error_message)
+        if not isinstance(data["rates"]["JPY"], (int, float)):
+            error_message = f"Invalid JPY rate type: {type(data['rates']['JPY'])}, response: {response.text}"
             bot.loop.create_task(notify_error(error_message))
             raise ValueError(error_message)
         rate = float(data["rates"]["JPY"])
