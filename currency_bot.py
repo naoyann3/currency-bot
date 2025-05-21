@@ -33,33 +33,27 @@ async def notify_error(error_message):
 def get_usd_jpy_rate():
     global LAST_RATE, LAST_RATE_TIME
     now = datetime.now()
-
     if LAST_RATE and LAST_RATE_TIME and (now - LAST_RATE_TIME).total_seconds() < RATE_CACHE_DURATION:
         print(f"Debug: Using cached rate: {LAST_RATE}", flush=True)
         return LAST_RATE
-
     try:
-        api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
-        url = f"https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=USD&to_currency=JPY&apikey={api_key}"
+        url = f"https://api.exchangerate-api.com/v4/latest/USD?api_key={os.getenv('EXCHANGE_RATE_API_KEY')}"
         response = requests.get(url, timeout=5)
         data = response.json()
         print(f"Debug: Raw API response: {data}", flush=True)
-        if "Error Message" in data:
-            error_message = f"Invalid API response: {data['Error Message']}"
+        if "rates" not in data or "JPY" not in data["rates"]:
+            error_message = f"Invalid API response: {data.get('error', 'Unknown error')}"
             bot.loop.create_task(notify_error(error_message))
             raise ValueError(error_message)
-        if "Information" in data and "rate limit" in data["Information"].lower():
-            error_message = f"API rate limit exceeded: {data['Information']}"
-            bot.loop.create_task(notify_error(error_message))
-            raise ValueError(error_message)
-        rate = float(data["Realtime Currency Exchange Rate"]["5. Exchange Rate"])
+        rate = float(data["rates"]["JPY"])
         print(f"Debug: Fetched real-time rate: {rate}", flush=True)
         LAST_RATE = rate
         LAST_RATE_TIME = now
         return rate
     except Exception as e:
-        print(f"Debug: Error fetching rate: {e}, using fallback 150.00", flush=True)
-        bot.loop.create_task(notify_error(f"Error fetching rate: {e}"))
+        error_message = f"Error fetching rate: {str(e)}, response: {response.text if 'response' in locals() else 'N/A'}"
+        print(f"Debug: {error_message}, using fallback 150.00", flush=True)
+        bot.loop.create_task(notify_error(error_message))
         LAST_RATE = 150.00
         LAST_RATE_TIME = now
         return 150.00
