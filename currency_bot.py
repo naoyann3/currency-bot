@@ -3,8 +3,10 @@ from discord.ext import commands
 import requests
 import re
 import os
+import json
 from datetime import datetime
 
+# Discordボット設定
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -20,15 +22,26 @@ ALLOWED_CHANNEL_IDS = [
     1360265671656739058   # 会員部屋レジスタンスライン確認部屋
 ]
 
-PROCESSED_MESSAGE_IDS = set()
+PROCESSED_MESSAGE_IDS_FILE = "processed_message_ids.json"
+PROCESSED_MESSAGE_IDS = set()  # 起動ごとに初期化
 LAST_SKIPPED_MESSAGE_ID = None
 LAST_RATE = None
 LAST_RATE_TIME = None
-RATE_CACHE_DURATION = 300  # 5分（秒）
+RATE_CACHE_DURATION = 900  # 15分（秒）
 
 async def notify_error(error_message):
-    owner = await bot.fetch_user(666441601173946380)  # あなたのユーザーID
-    await owner.send(f"Botエラー: {error_message}\n詳細ログを確認してください: Renderダッシュボード")
+    channel = bot.get_channel(949289154498408459)  # 運営ボイチャ雑談
+    if channel:
+        await channel.send(f"Botエラー: {error_message}\n詳細ログを確認してください: Renderダッシュボード")
+    else:
+        print(f"Debug: Failed to find channel 949289154498408459 for error notification", flush=True)
+
+def save_processed_message_ids(message_ids):
+    try:
+        with open(PROCESSED_MESSAGE_IDS_FILE, "w") as f:
+            json.dump(list(message_ids), f)
+    except Exception as e:
+        print(f"Debug: Error saving processed IDs: {e}", flush=True)
 
 def get_usd_jpy_rate():
     global LAST_RATE, LAST_RATE_TIME
@@ -37,19 +50,19 @@ def get_usd_jpy_rate():
         print(f"Debug: Using cached rate: {LAST_RATE}", flush=True)
         return LAST_RATE
     try:
-        url = f"https://api.exchangerate-api.com/v4/latest/USD?api_key={os.getenv('EXCHANGE_RATE_API_KEY')}"
+        url = f"https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=USD&to_currency=JPY&apikey={os.getenv('ALPHA_VANTAGE_API_KEY')}"
         response = requests.get(url, timeout=5)
         data = response.json()
         print(f"Debug: Raw API response: {data}", flush=True)
-        if "rates" not in data or "JPY" not in data["rates"]:
-            error_message = f"Invalid API response: {data.get('error', 'Unknown error')}, response: {response.text}"
+        if "Realtime Currency Exchange Rate" not in data or "5. Exchange Rate" not in data["Realtime Currency Exchange Rate"]:
+            error_message = f"Invalid API response: {data.get('Error Message', 'Unknown error')}, response: {response.text}"
             bot.loop.create_task(notify_error(error_message))
             raise ValueError(error_message)
-        if not isinstance(data["rates"]["JPY"], (int, float)):
-            error_message = f"Invalid JPY rate type: {type(data['rates']['JPY'])}, response: {response.text}"
+        rate = float(data["Realtime Currency Exchange Rate"]["5. Exchange Rate"])
+        if not isinstance(rate, (int, float)):
+            error_message = f"Invalid JPY rate type: {type(rate)}, response: {response.text}"
             bot.loop.create_task(notify_error(error_message))
             raise ValueError(error_message)
-        rate = float(data["rates"]["JPY"])
         print(f"Debug: Fetched real-time rate: {rate}", flush=True)
         LAST_RATE = rate
         LAST_RATE_TIME = now
@@ -69,9 +82,12 @@ async def on_ready():
 @bot.event
 async def on_message(message):
     global LAST_SKIPPED_MESSAGE_ID
+    print(f"Debug: Checking message ID: {message.id}", flush=True)
     if message.author == bot.user or message.id in PROCESSED_MESSAGE_IDS:
+        print(f"Debug: Skipping processed message ID: {message.id}", flush=True)
         return
     PROCESSED_MESSAGE_IDS.add(message.id)
+    save_processed_message_ids(PROCESSED_MESSAGE_IDS)
 
     if message.channel.id not in ALLOWED_CHANNEL_IDS:
         if LAST_SKIPPED_MESSAGE_ID != message.id:
@@ -149,4 +165,5 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
+# Discordボット起動
 bot.run(os.getenv("YOUR_BOT_TOKEN"))
