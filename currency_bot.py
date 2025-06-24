@@ -13,6 +13,9 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+# エラーメッセージ抑制フラグ
+SUPPRESS_ALPHA_VANTAGE_ERROR = True  # TrueでAlpha Vantageエラーメッセージをチャンネルに送信しない
+
 ALLOWED_CHANNEL_IDS = [
     1010942568550387713,  # テスト一般会員部屋サポートライン
     1010942630324076634,  # テスト一般会員部屋レジスタンスライン
@@ -82,59 +85,73 @@ def get_usd_jpy_rate():
 
     # Alpha Vantage（優先）
     rate = None
-    for attempt in range(2):
-        try:
-            key = random.choice(ALPHA_VANTAGE_KEYS)
-            url = f"https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=USD&to_currency=JPY&apikey={key}"
-            response = requests.get(url, timeout=10)
-            data = response.json()
-            print(f"Debug: Raw API response (key: {key}): {data}", flush=True)
-            if "Realtime Currency Exchange Rate" not in data or "5. Exchange Rate" not in data["Realtime Currency Exchange Rate"]:
-                error_message = f"Invalid Alpha Vantage response: {data.get('Error Message', 'Unknown error')}, response: {response.text}"
-                bot.loop.create_task(notify_error(error_message))
-                raise ValueError(error_message)
-            rate = float(data["Realtime Currency Exchange Rate"]["5. Exchange Rate"])
-            if not isinstance(rate, (int, float)):
-                error_message = f"Invalid JPY rate type: {type(rate)}, response: {response.text}"
-                bot.loop.create_task(notify_error(error_message))
-                raise ValueError(error_message)
-            print(f"Debug: Fetched real-time rate: {rate}", flush=True)
-            break
-        except Exception as e:
-            error_message = f"Alpha Vantage error (attempt {attempt+1}, key: {key}): {str(e)}, response: {response.text if 'response' in locals() else 'N/A'}"
-            print(f"Debug: {error_message}", flush=True)
-            if attempt == 0:
-                time.sleep(1)
-                continue
+    if not ALPHA_VANTAGE_KEYS or ALPHA_VANTAGE_KEYS == [""]:
+        error_message = "No valid Alpha Vantage API keys provided in ALPHA_VANTAGE_KEYS"
+        print(f"Debug: {error_message}", flush=True)
+        if not SUPPRESS_ALPHA_VANTAGE_ERROR:
             bot.loop.create_task(notify_error(error_message))
-
-    # ExchangeRate-API（バックアップ）
-    if rate is None:
+    else:
         for attempt in range(2):
             try:
-                key = os.getenv("EXCHANGERATE_API_KEY")
-                url = f"https://v6.exchangerate-api.com/v6/{key}/pair/USD/JPY"
+                key = random.choice(ALPHA_VANTAGE_KEYS)
+                url = f"https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=USD&to_currency=JPY&apikey={key}"
                 response = requests.get(url, timeout=10)
                 data = response.json()
-                print(f"Debug: Raw API response (ExchangeRate-API, key: {key}): {data}", flush=True)
-                if data.get("result") != "success":
-                    error_message = f"Invalid ExchangeRate-API response: {data.get('error-type', 'Unknown error')}, response: {response.text}"
-                    bot.loop.create_task(notify_error(error_message))
+                print(f"Debug: Raw API response (key: {key}): {data}", flush=True)
+                if "Realtime Currency Exchange Rate" not in data or "5. Exchange Rate" not in data["Realtime Currency Exchange Rate"]:
+                    error_message = f"Invalid Alpha Vantage response: {data.get('Information', 'Unknown error')}, response: {response.text}"
+                    if not SUPPRESS_ALPHA_VANTAGE_ERROR:
+                        bot.loop.create_task(notify_error(error_message))
                     raise ValueError(error_message)
-                rate = float(data["conversion_rate"])
+                rate = float(data["Realtime Currency Exchange Rate"]["5. Exchange Rate"])
                 if not isinstance(rate, (int, float)):
                     error_message = f"Invalid JPY rate type: {type(rate)}, response: {response.text}"
-                    bot.loop.create_task(notify_error(error_message))
+                    if not SUPPRESS_ALPHA_VANTAGE_ERROR:
+                        bot.loop.create_task(notify_error(error_message))
                     raise ValueError(error_message)
                 print(f"Debug: Fetched real-time rate: {rate}", flush=True)
                 break
             except Exception as e:
-                error_message = f"ExchangeRate-API error (attempt {attempt+1}, key: {key}): {str(e)}, response: {response.text if 'response' in locals() else 'N/A'}"
+                error_message = f"Alpha Vantage error (attempt {attempt+1}, key: {key}): {str(e)}, response: {response.text if 'response' in locals() else 'N/A'}"
                 print(f"Debug: {error_message}", flush=True)
                 if attempt == 0:
                     time.sleep(1)
                     continue
-                bot.loop.create_task(notify_error(error_message))
+                if not SUPPRESS_ALPHA_VANTAGE_ERROR:
+                    bot.loop.create_task(notify_error(error_message))
+
+    # ExchangeRate-API（バックアップ）
+    if rate is None:
+        key = os.getenv("EXCHANGERATE_API_KEY")
+        if not key:
+            error_message = "No valid ExchangeRate-API key provided in EXCHANGERATE_API_KEY"
+            print(f"Debug: {error_message}", flush=True)
+            bot.loop.create_task(notify_error(error_message))
+        else:
+            for attempt in range(2):
+                try:
+                    url = f"https://v6.exchangerate-api.com/v6/{key}/pair/USD/JPY"
+                    response = requests.get(url, timeout=10)
+                    data = response.json()
+                    print(f"Debug: Raw API response (ExchangeRate-API, key: {key}): {data}", flush=True)
+                    if data.get("result") != "success":
+                        error_message = f"Invalid ExchangeRate-API response: {data.get('error-type', 'Unknown error')}, response: {response.text}"
+                        bot.loop.create_task(notify_error(error_message))
+                        raise ValueError(error_message)
+                    rate = float(data["conversion_rate"])
+                    if not isinstance(rate, (int, float)):
+                        error_message = f"Invalid JPY rate type: {type(rate)}, response: {response.text}"
+                        bot.loop.create_task(notify_error(error_message))
+                        raise ValueError(error_message)
+                    print(f"Debug: Fetched real-time rate: {rate}", flush=True)
+                    break
+                except Exception as e:
+                    error_message = f"ExchangeRate-API error (attempt {attempt+1}, key: {key}): {str(e)}, response: {response.text if 'response' in locals() else 'N/A'}"
+                    print(f"Debug: {error_message}", flush=True)
+                    if attempt == 0:
+                        time.sleep(1)
+                        continue
+                    bot.loop.create_task(notify_error(error_message))
 
     if rate is None:
         rate = load_rate_cache() or 150.00
