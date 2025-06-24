@@ -30,10 +30,18 @@ ALLOWED_CHANNEL_IDS = [
 PROCESSED_MESSAGE_IDS_FILE = "processed_message_ids.json"
 RATE_CACHE_FILE = "rate_cache.json"
 PROCESSED_MESSAGE_IDS = set()
+
+# 起動時にprocessed_message_ids.jsonを読み込み
+try:
+    with open(PROCESSED_MESSAGE_IDS_FILE, "r") as f:
+        PROCESSED_MESSAGE_IDS.update(set(json.load(f)))
+except (FileNotFoundError, json.JSONDecodeError):
+    pass  # ファイルがない場合は無視
+
 LAST_SKIPPED_MESSAGE_ID = None
 LAST_RATE = None
 LAST_RATE_TIME = None
-RATE_CACHE_DURATION = 1800  # 30分（秒）
+RATE_CACHE_DURATION = 900  # 15分（秒）
 ALPHA_VANTAGE_KEYS = os.getenv("ALPHA_VANTAGE_KEYS", "").split(",")
 
 async def notify_error(error_message):
@@ -63,7 +71,7 @@ def load_rate_cache():
             with open(RATE_CACHE_FILE, "r") as f:
                 data = json.load(f)
             timestamp = datetime.fromisoformat(data["timestamp"])
-            if (datetime.now() - timestamp).total_seconds() < 24 * 3600:  # 24時間有効
+            if (datetime.now() - timestamp).total_seconds() < 12 * 3600:  # 12時間有効
                 return float(data["rate"])
     except Exception as e:
         print(f"Debug: Error loading rate cache: {e}", flush=True)
