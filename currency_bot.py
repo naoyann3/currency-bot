@@ -99,14 +99,14 @@ def get_usd_jpy_rate():
         if not SUPPRESS_ALPHA_VANTAGE_ERROR:
             bot.loop.create_task(notify_error(error_message))
     else:
-        **print(f"Debug: Available Alpha Vantage keys: {ALPHA_VANTAGE_KEYS}", flush=True)**
+        print(f"Debug: Available Alpha Vantage keys: {ALPHA_VANTAGE_KEYS}", flush=True)  # 修正
         for attempt in range(2):
             try:
                 key = random.choice(ALPHA_VANTAGE_KEYS)
-                **print(f"Debug: Selected key: {key}", flush=True)**
+                print(f"Debug: Selected key: {key}", flush=True)  # 修正
                 url = f"https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=USD&to_currency=JPY&apikey={key}"
                 response = requests.get(url, timeout=10)
-                **print(f"Debug: Response status: {response.status_code}", flush=True)**
+                print(f"Debug: Response status: {response.status_code}", flush=True)  # 修正
                 data = response.json()
                 print(f"Debug: Raw API response (key: {key}): {data}", flush=True)
                 if "Realtime Currency Exchange Rate" not in data or "5. Exchange Rate" not in data["Realtime Currency Exchange Rate"]:
@@ -132,6 +132,7 @@ def get_usd_jpy_rate():
                     bot.loop.create_task(notify_error(error_message))
 
     # ExchangeRate-API（バックアップ）
+    # （以下、元のコードと同じ）
     if rate is None:
         key = os.getenv("EXCHANGERATE_API_KEY")
         if not key:
