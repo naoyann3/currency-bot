@@ -47,7 +47,6 @@ ALPHA_VANTAGE_KEYS = os.getenv("ALPHA_VANTAGE_KEYS", "").split(",")
 async def notify_error(error_message, error_type="unknown"):
     channel = bot.get_channel(949289154498408459)  # 運営ボイチャ雑談
     if channel:
-        # エラーの種類に応じた日本語メッセージ
         if error_type == "invalid_key":
             message = (
                 "【為替ボットからのお知らせ】\n"
@@ -62,6 +61,13 @@ async def notify_error(error_message, error_type="unknown"):
                 "でも大丈夫、ボットは予備データ（1ドル=146.3374円）で動いてます！"
                 "運営が後で確認するので、慌てなくてOKです！🙌 また報告します～！"
             )
+        elif error_type == "rate_limit_exceeded":
+            message = (
+                "【為替ボットからのお知らせ】\n"
+                "ごめんね、ちょっとトラブル発生！😅 為替データのサービスが混雑してるみたい。"
+                "でも大丈夫、ボットは予備データ（1ドル=146.3374円）で動いてます！"
+                "運営が後で確認するので、慌てなくてOKです！🙌 また報告します～！"
+            )
         else:  # その他のエラー
             message = (
                 "【為替ボットからのお知らせ】\n"
@@ -72,7 +78,6 @@ async def notify_error(error_message, error_type="unknown"):
         await channel.send(message)
     else:
         print(f"Debug: Failed to find channel 949289154498408459 for error notification", flush=True)
-    # 技術的詳細はログに
     print(f"Debug: Error details: {error_message}", flush=True)
 
 def save_processed_message_ids(message_ids):
@@ -124,16 +129,24 @@ def get_usd_jpy_rate():
             bot.loop.create_task(notify_error(error_message, error_type="invalid_key"))
     else:
         print(f"Debug: Available Alpha Vantage keys: {ALPHA_VANTAGE_KEYS}", flush=True)
-        for attempt in range(2):
+        available_keys = ALPHA_VANTAGE_KEYS.copy()  # キーリストのコピー
+        attempts_per_key = 2
+        while available_keys:
             try:
-                key = random.choice(ALPHA_VANTAGE_KEYS)
+                key = random.choice(available_keys)
                 print(f"Debug: Selected key: {key}", flush=True)
                 url = f"https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=USD&to_currency=JPY&apikey={key}"
                 response = requests.get(url, timeout=10)
                 print(f"Debug: Response status: {response.status_code}", flush=True)
                 if response.status_code == 429:
-                    print(f"Debug: Rate limit exceeded, skipping notification: {response.text}", flush=True)
-                    break  # リミット超過は通知せず終了
+                    print(f"Debug: Rate limit exceeded for key: {key}, removing from available keys", flush=True)
+                    available_keys.remove(key)  # リミット超過キーを除外
+                    if not available_keys:
+                        error_message = "All Alpha Vantage keys exceeded rate limit"
+                        print(f"Debug: {error_message}", flush=True)
+                        if not SUPPRESS_ALPHA_VANTAGE_ERROR:
+                            bot.loop.create_task(notify_error(error_message, error_type="rate_limit_exceeded"))
+                    continue
                 data = response.json()
                 print(f"Debug: Raw API response (key: {key}): {data}", flush=True)
                 if "Realtime Currency Exchange Rate" not in data or "5. Exchange Rate" not in data["Realtime Currency Exchange Rate"]:
@@ -150,21 +163,27 @@ def get_usd_jpy_rate():
                 print(f"Debug: Fetched real-time rate: {rate}", flush=True)
                 break
             except requests.exceptions.RequestException as e:
-                error_message = f"Alpha Vantage connection error (attempt {attempt+1}, key: {key}): {str(e)}, response: {response.text if 'response' in locals() else 'N/A'}"
+                error_message = f"Alpha Vantage connection error (key: {key}): {str(e)}, response: {response.text if 'response' in locals() else 'N/A'}"
                 print(f"Debug: {error_message}", flush=True)
-                if attempt == 0:
-                    time.sleep(1)
-                    continue
                 if not SUPPRESS_ALPHA_VANTAGE_ERROR:
                     bot.loop.create_task(notify_error(error_message, error_type="connection_error"))
+                available_keys.remove(key)  # 接続エラー時もキー除外
+                if not available_keys:
+                    error_message = "All Alpha Vantage keys failed due to connection errors"
+                    print(f"Debug: {error_message}", flush=True)
+                    if not SUPPRESS_ALPHA_VANTAGE_ERROR:
+                        bot.loop.create_task(notify_error(error_message, error_type="connection_error"))
             except Exception as e:
-                error_message = f"Alpha Vantage error (attempt {attempt+1}, key: {key}): {str(e)}, response: {response.text if 'response' in locals() else 'N/A'}"
+                error_message = f"Alpha Vantage error (key: {key}): {str(e)}, response: {response.text if 'response' in locals() else 'N/A'}"
                 print(f"Debug: {error_message}", flush=True)
-                if attempt == 0:
-                    time.sleep(1)
-                    continue
                 if not SUPPRESS_ALPHA_VANTAGE_ERROR:
                     bot.loop.create_task(notify_error(error_message, error_type="unknown"))
+                available_keys.remove(key)  # その他のエラーでもキー除外
+                if not available_keys:
+                    error_message = "All Alpha Vantage keys failed due to unknown errors"
+                    print(f"Debug: {error_message}", flush=True)
+                    if not SUPPRESS_ALPHA_VANTAGE_ERROR:
+                        bot.loop.create_task(notify_error(error_message, error_type="unknown"))
 
     # ExchangeRate-API（バックアップ）
     if rate is None:
