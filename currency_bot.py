@@ -14,33 +14,38 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # エラーメッセージ抑制フラグ
-SUPPRESS_ALPHA_VANTAGE_ERROR = True  # TrueでAlpha Vantageエラーメッセージをチャンネルに送信しない
+SUPPRESS_ALPHA_VANTAGE_ERROR = True
 
+# 許可チャンネル
 ALLOWED_CHANNEL_IDS = [
     1010942568550387713,  # テスト一般会員部屋サポートライン
     1010942630324076634,  # テスト一般会員部屋レジスタンスライン
     949289154498408459,   # 運営部屋運営ボイチャ雑談
+    1040300184795623444,  # 運営部屋全般改善部屋
     981557309526384753,   # 会員部屋レジスタンス部屋
     981557399032823869,   # 会員部屋サポート部屋
     1360244219486273674,  # 会員部屋サポートラインメンバー確認
-    1360265671656739058   # 会員部屋レジスタンスライン確認部屋
+    1360265671656739058,  # 会員部屋レジスタンスライン確認部屋
+    825968291272327218    # 何でも雑談、質問
 ]
+
+# 新ログチャンネル（仮：未設定）
+# NEW_LOG_CHANNEL_ID = 1234567890123456789
 
 PROCESSED_MESSAGE_IDS_FILE = "processed_message_ids.json"
 RATE_CACHE_FILE = "rate_cache.json"
 PROCESSED_MESSAGE_IDS = set()
 
-# 起動時にprocessed_message_ids.jsonを読み込み
 try:
     with open(PROCESSED_MESSAGE_IDS_FILE, "r") as f:
         PROCESSED_MESSAGE_IDS.update(set(json.load(f)))
 except (FileNotFoundError, json.JSONDecodeError):
-    pass  # ファイルがない場合は無視
+    pass
 
 LAST_SKIPPED_MESSAGE_ID = None
 LAST_RATE = None
 LAST_RATE_TIME = None
-RATE_CACHE_DURATION = 900  # 15分（秒）
+RATE_CACHE_DURATION = 300  # 5分
 ALPHA_VANTAGE_KEYS = os.getenv("ALPHA_VANTAGE_KEYS", "").split(",")
 
 async def notify_error(error_message, error_type="unknown"):
@@ -49,34 +54,34 @@ async def notify_error(error_message, error_type="unknown"):
         if error_type == "invalid_key":
             message = (
                 "【為替ボットからのお知らせ】\n"
-                "ごめんね、ちょっとトラブル発生！😅 為替データのサービスキーが使えなくなったみたい。"
-                "でも大丈夫、ボットは予備データ（1ドル=146.3374円）で動いてます！"
+                "ごめんね、ちょっとトラブル発生！😅 為替データのサービスキーが使えなくなったみたい。\n"
+                "でも大丈夫、ボットは予備データ（1ドル=146.3374円）で動いてます！\n"
                 "運営が新しいキーを準備するので、慌てなくてOKです！🙌 また報告します～！"
             )
         elif error_type == "connection_error":
             message = (
                 "【為替ボットからのお知らせ】\n"
-                "ごめんね、ちょっとトラブル発生！😅 為替データのサイトに繋がりにくくなっちゃったみたい。"
-                "でも大丈夫、ボットは予備データ（1ドル=146.3374円）で動いてます！"
+                "ごめんね、ちょっとトラブル発生！😅 為替データのサイトに繋がりにくくなっちゃったみたい。\n"
+                "でも大丈夫、ボットは予備データ（1ドル=146.3374円）で動いてます！\n"
                 "運営が後で確認するので、慌てなくてOKです！🙌 また報告します～！"
             )
         elif error_type == "rate_limit_exceeded":
             message = (
                 "【為替ボットからのお知らせ】\n"
-                "ごめんね、ちょっとトラブル発生！😅 為替データのサービスが混雑してるみたい。"
-                "でも大丈夫、ボットは予備データ（1ドル=146.3374円）で動いてます！"
+                "ごめんね、ちょっとトラブル発生！😅 為替データのサービスが混雑してるみたい。\n"
+                "でも大丈夫、ボットは予備データ（1ドル=146.3374円）で動いてます！\n"
                 "運営が後で確認するので、慌てなくてOKです！🙌 また報告します～！"
             )
-        else:  # その他のエラー
+        else:
             message = (
                 "【為替ボットからのお知らせ】\n"
-                "ごめんね、ちょっとトラブル発生！😅 為替データの取得で何か問題が起きたみたい。"
-                "でも大丈夫、ボットは予備データ（1ドル=146.3374円）で動いてます！"
+                "ごめんね、ちょっとトラブル発生！😅 為替データの取得で何か問題が起きたみたい。\n"
+                "でも大丈夫、ボットは予備データ（1ドル=146.3374円）で動いてます！\n"
                 "運営がゆっくりチェックするので、慌てなくてOKです！🙌 また報告します～！"
             )
         await channel.send(message)
     else:
-        print(f"Debug: Failed to find channel 949289154498408459 for error notification", flush=True)
+        print(f"Debug: Failed to find channel for error notification", flush=True)
     print(f"Debug: Error details: {error_message}", flush=True)
 
 def save_processed_message_ids(message_ids):
@@ -99,7 +104,7 @@ def load_rate_cache():
             with open(RATE_CACHE_FILE, "r") as f:
                 data = json.load(f)
             timestamp = datetime.fromisoformat(data["timestamp"])
-            if (datetime.now() - timestamp).total_seconds() < 12 * 3600:  # 12時間有効
+            if (datetime.now() - timestamp).total_seconds() < 6 * 3600:  # 6時間
                 return float(data["rate"])
     except Exception as e:
         print(f"Debug: Error loading rate cache: {e}", flush=True)
@@ -119,7 +124,6 @@ def get_usd_jpy_rate():
         print(f"Debug: Using file-cached rate: {LAST_RATE}", flush=True)
         return LAST_RATE
 
-    # Alpha Vantage（優先）
     rate = None
     if not ALPHA_VANTAGE_KEYS or ALPHA_VANTAGE_KEYS == [""]:
         error_message = "No valid Alpha Vantage API keys provided in ALPHA_VANTAGE_KEYS"
@@ -128,7 +132,7 @@ def get_usd_jpy_rate():
             bot.loop.create_task(notify_error(error_message, error_type="invalid_key"))
     else:
         print(f"Debug: Available Alpha Vantage keys: {ALPHA_VANTAGE_KEYS}", flush=True)
-        available_keys = ALPHA_VANTAGE_KEYS.copy()  # キーリストのコピー
+        available_keys = ALPHA_VANTAGE_KEYS.copy()
         attempts_per_key = 2
         while available_keys:
             try:
@@ -139,7 +143,7 @@ def get_usd_jpy_rate():
                 print(f"Debug: Response status: {response.status_code}", flush=True)
                 if response.status_code == 429:
                     print(f"Debug: Rate limit exceeded for key: {key}, removing from available keys", flush=True)
-                    available_keys.remove(key)  # リミット超過キーを除外
+                    available_keys.remove(key)
                     if not available_keys:
                         error_message = "All Alpha Vantage keys exceeded rate limit"
                         print(f"Debug: {error_message}", flush=True)
@@ -166,7 +170,7 @@ def get_usd_jpy_rate():
                 print(f"Debug: {error_message}", flush=True)
                 if not SUPPRESS_ALPHA_VANTAGE_ERROR:
                     bot.loop.create_task(notify_error(error_message, error_type="connection_error"))
-                available_keys.remove(key)  # 接続エラー時もキー除外
+                available_keys.remove(key)
                 if not available_keys:
                     error_message = "All Alpha Vantage keys failed due to connection errors"
                     print(f"Debug: {error_message}", flush=True)
@@ -177,14 +181,13 @@ def get_usd_jpy_rate():
                 print(f"Debug: {error_message}", flush=True)
                 if not SUPPRESS_ALPHA_VANTAGE_ERROR:
                     bot.loop.create_task(notify_error(error_message, error_type="unknown"))
-                available_keys.remove(key)  # その他のエラーでもキー除外
+                available_keys.remove(key)
                 if not available_keys:
                     error_message = "All Alpha Vantage keys failed due to unknown errors"
                     print(f"Debug: {error_message}", flush=True)
                     if not SUPPRESS_ALPHA_VANTAGE_ERROR:
                         bot.loop.create_task(notify_error(error_message, error_type="unknown"))
 
-    # ExchangeRate-API（バックアップ）
     if rate is None:
         key = os.getenv("EXCHANGERATE_API_KEY")
         if not key:
@@ -236,6 +239,13 @@ def get_usd_jpy_rate():
 @bot.event
 async def on_ready():
     print(f"{bot.user} が起動しました！(鉄壁版)", flush=True)
+    channel = bot.get_channel(981557399032823869)  # サポートライン
+    if channel:
+        await channel.send(
+            "【為替ボット確認】\n"
+            "ボット稼働中！😄 サポート/レジスタンスでドル→円変換OK（1ドル=最新レート）。\n"
+            "ご心配あれば運営まで！🙌"
+        )
 
 @bot.event
 async def on_message(message):
@@ -255,7 +265,7 @@ async def on_message(message):
         return
 
     content = message.content
-    dollar_pattern = r"(\d+)ドル"
+    dollar_pattern = r"(\d+)ドル|\$(\d+(?:,\d{3})*(?:\.\d+)?)"  # $100,000対応
     cme_pattern = r"CME窓[　\s]+赤丸(\d+)(?![ドル])"
 
     print(f"Debug: Processing message in channel {message.channel.id} ({message.channel.name}), ID: {message.id}", flush=True)
@@ -269,10 +279,10 @@ async def on_message(message):
 
     def replace_dollar(match):
         nonlocal modified, first_dollar
-        amount_str = match.group(1)
+        amount_str = match.group(1) or match.group(2)  # ドル or $形式
         print(f"Debug: Found dollar amount: {amount_str}", flush=True)
         try:
-            amount_float = float(amount_str)
+            amount_float = float(amount_str.replace(",", ""))
             result = int(amount_float * rate)
             amount_formatted = "{:,}".format(int(amount_float))
             result_formatted = "{:,}".format(result)
@@ -323,5 +333,4 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
-# Discordボット起動
 bot.run(os.getenv("YOUR_BOT_TOKEN"))
