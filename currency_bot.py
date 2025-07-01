@@ -93,7 +93,7 @@ def get_usd_jpy_rate():
     global LAST_RATE, LAST_RATE_TIME
     now = datetime.now()
     cache_note = ""
-    if LAST_RATE and LAST_RATE-parent_time and (now - LAST_RATE_TIME).total_seconds() < RATE_CACHE_DURATION:
+    if LAST_RATE and LAST_RATE_TIME and (now - LAST_RATE_TIME).total_seconds() < RATE_CACHE_DURATION:
         print(f"Debug: Using cached rate: {LAST_RATE}", flush=True)
         cache_note = "(キャッシュレート使用)"
         return LAST_RATE, cache_note
