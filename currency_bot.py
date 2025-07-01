@@ -13,7 +13,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# エラーメッセージ抑制フラグ
+# エラーメッセージ抑制フラグ（テストのため維持）
 SUPPRESS_ALPHA_VANTAGE_ERROR = True
 
 # 許可チャンネル
@@ -25,11 +25,10 @@ ALLOWED_CHANNEL_IDS = [
     981557399032823869,   # 会員部屋サポート部屋
     1360244219486273674,  # 会員部屋サポートラインメンバー確認
     1360265671656739058,  # 会員部屋レジスタンスライン確認部屋
-    825968291272327218    # 何でも雑談、質問
 ]
 
-# 新ログチャンネル（仮：未設定）
-# NEW_LOG_CHANNEL_ID = 1234567890123456789
+# 運営チャンネル（技術的フィードバック用）
+OPERATIONS_CHANNEL_ID = 949289154498408459
 
 PROCESSED_MESSAGE_IDS_FILE = "processed_message_ids.json"
 RATE_CACHE_FILE = "rate_cache.json"
@@ -46,41 +45,18 @@ LAST_RATE = None
 LAST_RATE_TIME = None
 RATE_CACHE_DURATION = 300  # 5分
 ALPHA_VANTAGE_KEYS = os.getenv("ALPHA_VANTAGE_KEYS", "").split(",")
+EXCHANGERATE_API_KEY = os.getenv("EXCHANGERATE_API_KEY")
 
 async def notify_error(error_message, error_type="unknown"):
-    channel = bot.get_channel(949289154498408459)  # 運営ボイチャ雑談
+    channel = bot.get_channel(OPERATIONS_CHANNEL_ID)
     if channel:
-        if error_type == "invalid_key":
-            message = (
-                "【為替ボットからのお知らせ】\n"
-                "ごめんね、ちょっとトラブル発生！😅 為替データのサービスキーが使えなくなったみたい。\n"
-                "でも大丈夫、ボットは予備データ（1ドル=146.3374円）で動いてます！\n"
-                "運営が新しいキーを準備するので、慌てなくてOKです！🙌 また報告します～！"
-            )
-        elif error_type == "connection_error":
-            message = (
-                "【為替ボットからのお知らせ】\n"
-                "ごめんね、ちょっとトラブル発生！😅 為替データのサイトに繋がりにくくなっちゃったみたい。\n"
-                "でも大丈夫、ボットは予備データ（1ドル=146.3374円）で動いてます！\n"
-                "運営が後で確認するので、慌てなくてOKです！🙌 また報告します～！"
-            )
-        elif error_type == "rate_limit_exceeded":
-            message = (
-                "【為替ボットからのお知らせ】\n"
-                "ごめんね、ちょっとトラブル発生！😅 為替データのサービスが混雑してるみたい。\n"
-                "でも大丈夫、ボットは予備データ（1ドル=146.3374円）で動いてます！\n"
-                "運営が後で確認するので、慌てなくてOKです！🙌 また報告します～！"
-            )
-        else:
-            message = (
-                "【為替ボットからのお知らせ】\n"
-                "ごめんね、ちょっとトラブル発生！😅 為替データの取得で何か問題が起きたみたい。\n"
-                "でも大丈夫、ボットは予備データ（1ドル=146.3374円）で動いてます！\n"
-                "運営がゆっくりチェックするので、慌てなくてOKです！🙌 また報告します～！"
-            )
-        await channel.send(message)
-    else:
-        print(f"Debug: Failed to find channel for error notification", flush=True)
+        tech_message = (
+            f"【為替ボット：技術的お知らせ】\n"
+            f"エラーが発生しました（タイプ：{error_type}）。\n"
+            f"詳細：{error_message}\n"
+            f"ボットは予備レート（1ドル=150円）で動作中です。運営にて対応中。"
+        )
+        await channel.send(tech_message)
     print(f"Debug: Error details: {error_message}", flush=True)
 
 def save_processed_message_ids(message_ids):
@@ -89,6 +65,8 @@ def save_processed_message_ids(message_ids):
             json.dump(list(message_ids), f)
     except Exception as e:
         print(f"Debug: Error saving processed IDs: {e}", flush=True)
+        if not SUPPRESS_ALPHA_VANTAGE_ERROR:
+            bot.loop.create_task(notify_error(f"Error saving processed message IDs: {e}", error_type="file_error"))
 
 def save_rate_cache(rate, timestamp):
     try:
@@ -96,6 +74,8 @@ def save_rate_cache(rate, timestamp):
             json.dump({"rate": rate, "timestamp": timestamp.isoformat()}, f)
     except Exception as e:
         print(f"Debug: Error saving rate cache: {e}", flush=True)
+        if not SUPPRESS_ALPHA_VANTAGE_ERROR:
+            bot.loop.create_task(notify_error(f"Error saving rate cache: {e}", error_type="file_error"))
 
 def load_rate_cache():
     try:
@@ -112,16 +92,19 @@ def load_rate_cache():
 def get_usd_jpy_rate():
     global LAST_RATE, LAST_RATE_TIME
     now = datetime.now()
+    cache_note = ""
     if LAST_RATE and LAST_RATE_TIME and (now - LAST_RATE_TIME).total_seconds() < RATE_CACHE_DURATION:
         print(f"Debug: Using cached rate: {LAST_RATE}", flush=True)
-        return LAST_RATE
+        cache_note = "(キャッシュレート使用)"
+        return LAST_RATE, cache_note
 
     cached_rate = load_rate_cache()
     if cached_rate:
         LAST_RATE = cached_rate
         LAST_RATE_TIME = now
         print(f"Debug: Using file-cached rate: {LAST_RATE}", flush=True)
-        return LAST_RATE
+        cache_note = "(キャッシュレート使用)"
+        return LAST_RATE, cache_note
 
     rate = None
     if not ALPHA_VANTAGE_KEYS or ALPHA_VANTAGE_KEYS == [""]:
@@ -188,11 +171,12 @@ def get_usd_jpy_rate():
                         bot.loop.create_task(notify_error(error_message, error_type="unknown"))
 
     if rate is None:
-        key = os.getenv("EXCHANGERATE_API_KEY")
+        key = EXCHANGERATE_API_KEY
         if not key:
             error_message = "No valid ExchangeRate-API key provided in EXCHANGERATE_API_KEY"
             print(f"Debug: {error_message}", flush=True)
-            bot.loop.create_task(notify_error(error_message, error_type="invalid_key"))
+            if not SUPPRESS_ALPHA_VANTAGE_ERROR:
+                bot.loop.create_task(notify_error(error_message, error_type="invalid_key"))
         else:
             for attempt in range(2):
                 try:
@@ -202,12 +186,14 @@ def get_usd_jpy_rate():
                     print(f"Debug: Raw API response (ExchangeRate-API, key: {key}): {data}", flush=True)
                     if data.get("result") != "success":
                         error_message = f"Invalid ExchangeRate-API response: {data.get('error-type', 'Unknown error')}, response: {response.text}"
-                        bot.loop.create_task(notify_error(error_message, error_type="unknown"))
+                        if not SUPPRESS_ALPHA_VANTAGE_ERROR:
+                            bot.loop.create_task(notify_error(error_message, error_type="unknown"))
                         raise ValueError(error_message)
                     rate = float(data["conversion_rate"])
                     if not isinstance(rate, (int, float)):
                         error_message = f"Invalid JPY rate type: {type(rate)}, response: {response.text}"
-                        bot.loop.create_task(notify_error(error_message, error_type="unknown"))
+                        if not SUPPRESS_ALPHA_VANTAGE_ERROR:
+                            bot.loop.create_task(notify_error(error_message, error_type="unknown"))
                         raise ValueError(error_message)
                     print(f"Debug: Fetched real-time rate: {rate}", flush=True)
                     break
@@ -217,23 +203,27 @@ def get_usd_jpy_rate():
                     if attempt == 0:
                         time.sleep(1)
                         continue
-                    bot.loop.create_task(notify_error(error_message, error_type="connection_error"))
+                    if not SUPPRESS_ALPHA_VANTAGE_ERROR:
+                        bot.loop.create_task(notify_error(error_message, error_type="connection_error"))
                 except Exception as e:
                     error_message = f"ExchangeRate-API error (attempt {attempt+1}, key: {key}): {str(e)}, response: {response.text if 'response' in locals() else 'N/A'}"
                     print(f"Debug: {error_message}", flush=True)
                     if attempt == 0:
                         time.sleep(1)
                         continue
-                    bot.loop.create_task(notify_error(error_message, error_type="unknown"))
+                    if not SUPPRESS_ALPHA_VANTAGE_ERROR:
+                        bot.loop.create_task(notify_error(error_message, error_type="unknown"))
 
     if rate is None:
         rate = load_rate_cache() or 150.00
         print(f"Debug: Using file-cached or default rate: {rate}", flush=True)
+        cache_note = "(キャッシュレート使用)"
     else:
         save_rate_cache(rate, now)
+        cache_note = "(最新レート)"
     LAST_RATE = rate
     LAST_RATE_TIME = now
-    return rate
+    return rate, cache_note
 
 @bot.event
 async def on_ready():
@@ -242,8 +232,8 @@ async def on_ready():
     if channel:
         await channel.send(
             "【為替ボット確認】\n"
-            "ボット稼働中！😄 サポート/レジスタンスでドル→円変換OK（1ドル=最新レート）。\n"
-            "ご心配あれば運営まで！🙌"
+            "ボット稼働中！サポート/レジスタンスでドル→円変換OK。\n"
+            "ご質問は運営ボイチャ雑談までお願いします。"
         )
 
 @bot.event
@@ -270,7 +260,7 @@ async def on_message(message):
     print(f"Debug: Processing message in channel {message.channel.id} ({message.channel.name}), ID: {message.id}", flush=True)
     print(f"Debug: Received message: {content[:100]}...", flush=True)
 
-    rate = get_usd_jpy_rate()
+    rate, cache_note = get_usd_jpy_rate()
     new_content = content.replace("@everyone", "").strip()
     modified = False
     avg_price_pos = new_content.find("平均取得単価")
@@ -289,7 +279,7 @@ async def on_message(message):
             base_output = f"{result_formatted}円\n{amount_formatted}ドル"
             if first_dollar:
                 first_dollar = False
-                return f"{base_output}\n(レート: 1ドル = {rate:.2f}円)"
+                return f"{base_output}\n(レート: 1ドル = {rate:.2f}円)\nレートは5分ごとに更新されますが、市場の最新レートと異なる場合があります。"
             elif avg_price_pos != -1 and match.start() > avg_price_pos and "平均取得単価" in new_content[:match.start()]:
                 return f"{result_formatted}円\n{amount_formatted}ドル"
             return base_output
@@ -311,15 +301,27 @@ async def on_message(message):
             amount_formatted = "{:,}".format(int(amount_float))
             result_formatted = "{:,}".format(result)
             modified = True
-            return f"{result_formatted}円\nCME窓 赤丸{amount_formatted}ドル"
+            return f"{result_formatted}円\nCME窓 赤丸{amount_formatted}ドル\n(レート: 1ドル = {rate:.2f}円)\nレートは5分ごとに更新されますが、市場の最新レートと異なる場合があります。"
         except ValueError as e:
             print(f"Debug: Invalid amount {amount_str}: {e}", flush=True)
             return match.group(0)
 
     new_content = re.sub(cme_pattern, replace_cme, new_content)
 
+    # キャッシュレート使用時の運営チャンネル通知
+    if modified and cache_note == "(キャッシュレート使用)":
+        channel = bot.get_channel(OPERATIONS_CHANNEL_ID)
+        if channel:
+            await channel.send(
+                f"【為替ボット：技術的お知らせ】\n"
+                f"メッセージID {message.id} でキャッシュレート（1ドル = {rate:.2f}円）を使用しました。"
+            )
+
     if not modified:
         print("Debug: No modifications made, skipping send", flush=True)
+        # フォーマット誤りの検出（通知なし）
+        if ("＄" in content or "$" in content and not re.search(dollar_pattern, content)):
+            print(f"Debug: Skipped message ID: {message.id}, Reason: Invalid dollar format, Content: {content[:100]}...", flush=True)
         await bot.process_commands(message)
         return
 
