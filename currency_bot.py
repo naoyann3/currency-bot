@@ -13,7 +13,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# エラーメッセージ抑制フラグ（テストのため維持）
+# エラーメッセージ抑制フラグ
 SUPPRESS_ALPHA_VANTAGE_ERROR = False
 
 # 許可チャンネル
@@ -93,7 +93,7 @@ def get_usd_jpy_rate():
     global LAST_RATE, LAST_RATE_TIME
     now = datetime.now()
     cache_note = ""
-    if LAST_RATE and LAST_RATE_TIME and (now - LAST_RATE_TIME).total_seconds() < RATE_CACHE_DURATION:
+    if LAST_RATE and LAST_RATE-parent_time and (now - LAST_RATE_TIME).total_seconds() < RATE_CACHE_DURATION:
         print(f"Debug: Using cached rate: {LAST_RATE}", flush=True)
         cache_note = "(キャッシュレート使用)"
         return LAST_RATE, cache_note
@@ -228,13 +228,6 @@ def get_usd_jpy_rate():
 @bot.event
 async def on_ready():
     print(f"{bot.user} が起動しました！(鉄壁版)", flush=True)
-    channel = bot.get_channel(981557399032823869)  # サポートライン
-    if channel:
-        await channel.send(
-            "【為替ボット確認】\n"
-            "ボット稼働中！サポート/レジスタンスでドル→円変換OK。\n"
-            "ご質問は運営ボイチャ雑談までお願いします。"
-        )
 
 @bot.event
 async def on_message(message):
