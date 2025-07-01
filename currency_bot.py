@@ -16,7 +16,6 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # エラーメッセージ抑制フラグ（テストのため維持）
 SUPPRESS_ALPHA_VANTAGE_ERROR = False
 
-
 # 許可チャンネル
 ALLOWED_CHANNEL_IDS = [
     1010942568550387713,  # テスト一般会員部屋サポートライン
