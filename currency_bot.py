@@ -83,7 +83,7 @@ def load_rate_cache():
             with open(RATE_CACHE_FILE, "r") as f:
                 data = json.load(f)
             timestamp = datetime.fromisoformat(data["timestamp"])
-            if (datetime.now() - timestamp).total_seconds() < 6 * 3600:  # 6時間
+            if (datetime.now() - timestamp).total_seconds() < 3 * 3600:  # 6時間
                 return float(data["rate"])
     except Exception as e:
         print(f"Debug: Error loading rate cache: {e}", flush=True)
