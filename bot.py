@@ -24,7 +24,6 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 ALLOWED_CHANNEL_IDS = [
     1010942568550387713,  # テスト一般会員部屋サポートライン
     1010942630324076634,  # テスト一般会員部屋レジスタンスライン
-    949289154498408459,   # 運営部屋運営ボイチャ雑談
     981557309526384753,   # 会員部屋レジスタンス部屋
     981557399032823869,   # 会員部屋サポート部屋
     1360244219486273674,  # 会員部屋サポートラインメンバー確認
@@ -32,7 +31,7 @@ ALLOWED_CHANNEL_IDS = [
 ]
 
 # 運営部屋運営ボイチャ雑談（技術的フィードバック用）
-OPERATIONS_CHANNEL_ID = 949289154498408459
+OPERATIONS_CHANNEL_ID = 
 
 PROCESSED_MESSAGE_IDS_FILE = "processed_message_ids.json"
 PROCESSED_MESSAGE_IDS = set()
