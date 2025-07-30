@@ -30,8 +30,8 @@ ALLOWED_CHANNEL_IDS = [
     1360265671656739058,  # 会員部屋レジスタンスライン確認部屋
 ]
 
-# 運営部屋運営ボイチャ雑談（技術的フィードバック用）
-OPERATIONS_CHANNEL_ID = 
+# テスト一般会員部屋サポートライン（技術的フィードバック用）
+OPERATIONS_CHANNEL_ID = 1010942568550387713
 
 PROCESSED_MESSAGE_IDS_FILE = "processed_message_ids.json"
 PROCESSED_MESSAGE_IDS = set()
