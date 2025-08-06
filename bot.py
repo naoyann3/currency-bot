@@ -28,10 +28,11 @@ ALLOWED_CHANNEL_IDS = [
     981557399032823869,   # 会員部屋サポート部屋
     1360244219486273674,  # 会員部屋サポートラインメンバー確認
     1360265671656739058,  # 会員部屋レジスタンスライン確認部屋
+    1253028001302446140,  # botテスト部屋
 ]
 
-# テスト一般会員部屋サポートライン（技術的フィードバック用）
-OPERATIONS_CHANNEL_ID = 1010942568550387713
+# botテスト部屋（技術的フィードバック用）
+OPERATIONS_CHANNEL_ID = 1253028001302446140
 
 PROCESSED_MESSAGE_IDS_FILE = "processed_message_ids.json"
 PROCESSED_MESSAGE_IDS = set()
